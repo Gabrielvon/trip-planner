@@ -17,6 +17,8 @@ import {
   SEED_STOPS,
 } from './mock';
 import { guessCoords } from './ui-mappers';
+import { parseTripWithOpenAI } from './parse-openai';
+import { resolveAllStops } from './amap-provider';
 
 type ParseBody = {
   text?: string;
@@ -306,6 +308,17 @@ function buildAmapNavigationUrl(stops: Array<{
   return `https://uri.amap.com/navigation?from=${from.lng},${from.lat},${encodeURIComponent(from.name)}&to=${to.lng},${to.lat},${encodeURIComponent(to.name)}&mode=${mode}`;
 }
 
+function hasMissingResolvedPlace(trip: BackendMultiDayTrip): boolean {
+  return trip.days.some((day) => {
+    const startMissing = Boolean(day.start?.rawLocation && !day.start.resolvedPlace);
+    const endMissing = Boolean(day.end?.rawLocation && !day.end.resolvedPlace);
+    const stopMissing = day.stops.some(
+      (stop) => Boolean(stop.rawLocation && !stop.resolvedPlace),
+    );
+    return startMissing || endMissing || stopMissing;
+  });
+}
+
 export async function parseTripTextToDraft(
   body: ParseBody,
 ): Promise<ParseRouteResponse> {
@@ -313,16 +326,35 @@ export async function parseTripTextToDraft(
   const mapProvider = body.mapProvider ?? 'amap';
   const text = isNonEmptyString(body.text) ? body.text.trim() : '';
 
-  const warnings: string[] = [];
-
   if (!text) {
-    warnings.push('输入为空，已返回空白草稿。');
     return {
       trip: buildPlaceholderDraftTrip('', timezone, mapProvider),
-      warnings,
+      warnings: ['输入为空，已返回空白草稿。'],
     };
   }
 
+  // Try real OpenAI Structured Outputs when the API key is configured.
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const result = await parseTripWithOpenAI(text, timezone, mapProvider);
+      if (process.env.AMAP_API_KEY && mapProvider === 'amap') {
+        try {
+          result.trip.days = await resolveAllStops(result.trip.days, mapProvider);
+        } catch (err) {
+          console.error('[parse] AMap geocoding failed, using unresolved coords:', err);
+          result.warnings.push('AMap 地理编码失败，坐标将使用估算值。');
+        }
+      }
+      return result;
+    } catch (err) {
+      // Log and fall through to heuristic path so the UI stays usable.
+      console.error('[parse] OpenAI call failed, falling back to heuristic:', err);
+    }
+  }
+
+  // Heuristic fallback — return the sample trip for the built-in demo text,
+  // otherwise return a placeholder draft so the optimize step still has
+  // something to work with.
   const looksLikeSample =
     text.includes('浅草寺') ||
     text.includes('东京国立博物馆') ||
@@ -330,17 +362,23 @@ export async function parseTripTextToDraft(
     /\bD2\b|Day\s*2|第二天/i.test(text);
 
   if (looksLikeSample) {
-    warnings.push('当前 parse route 仍是最小服务端实现，暂时按示例规则返回。');
     return {
       trip: buildSampleDraftTrip(timezone, mapProvider),
-      warnings,
+      warnings: [
+        process.env.OPENAI_API_KEY
+          ? 'OpenAI 调用失败，已回退到示例数据。'
+          : 'OPENAI_API_KEY 未设置，已回退到示例数据。请在 .env.local 中配置 key。',
+      ],
     };
   }
 
-  warnings.push('当前 parse route 尚未接入真实结构化解析，已返回占位草稿。');
   return {
     trip: buildPlaceholderDraftTrip(text, timezone, mapProvider),
-    warnings,
+    warnings: [
+      process.env.OPENAI_API_KEY
+        ? 'OpenAI 调用失败，已返回占位草稿。'
+        : 'OPENAI_API_KEY 未设置，已返回占位草稿。请在 .env.local 中配置 key。',
+    ],
   };
 }
 
@@ -351,7 +389,21 @@ export async function optimizeTripServer(
     throw new Error('trip is required');
   }
 
-  const uiStops = draftTripToUiStops(body.trip);
+  const trip = { ...body.trip };
+
+  if (
+    process.env.AMAP_API_KEY &&
+    trip.mapProvider === 'amap' &&
+    hasMissingResolvedPlace(trip)
+  ) {
+    try {
+      trip.days = await resolveAllStops(trip.days, trip.mapProvider);
+    } catch (err) {
+      console.error('[optimize] AMap geocoding failed, falling back to guessed coords:', err);
+    }
+  }
+
+  const uiStops = draftTripToUiStops(trip);
 
   if (uiStops.length === 0) {
     throw new Error('trip contains no optimizable stops');
@@ -359,19 +411,19 @@ export async function optimizeTripServer(
 
   const optimizedStops = optimizeMultiDay(
     uiStops,
-    body.trip.transportMode,
-    body.trip.objective,
-    body.trip.mapProvider,
+    trip.transportMode,
+    trip.objective,
+    trip.mapProvider,
   );
 
   const schedule = buildMultiDaySchedule(
     optimizedStops,
-    body.trip.transportMode,
-    body.trip.mapProvider,
+    trip.transportMode,
+    trip.mapProvider,
   );
 
   const optimizedTrip = uiOptimizedToBackendOptimizedTrip(
-    body.trip,
+    trip,
     optimizedStops,
     schedule,
   );
@@ -379,7 +431,7 @@ export async function optimizeTripServer(
   return {
     optimizedTrip,
     explanations: [
-      `已按 ${body.trip.objective} 目标完成分日优化。`,
+      `已按 ${trip.objective} 目标完成分日优化。`,
       '当前优化器仍为启发式版本，后续可替换为更严格的时间窗求解器。',
     ],
     conflicts: [],
@@ -393,8 +445,10 @@ export async function buildNavigationLinksServer(
     throw new Error('trip is required');
   }
 
+  const trip = body.trip;
+
   return {
-    days: body.trip.optimizedDays.map((dayObj) => {
+    days: trip.optimizedDays.map((dayObj) => {
       const stops = dayObj.orderedStops
         .filter((stop) => stop.resolvedPlace)
         .map((stop) => ({
@@ -405,7 +459,7 @@ export async function buildNavigationLinksServer(
 
       return {
         day: dayObj.day,
-        navigationUrl: buildAmapNavigationUrl(stops, body.trip.transportMode),
+        navigationUrl: buildAmapNavigationUrl(stops, trip.transportMode),
       };
     }),
   };

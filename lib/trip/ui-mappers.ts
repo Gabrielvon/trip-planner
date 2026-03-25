@@ -7,6 +7,7 @@ import {
   OptimizeRouteResponse,
   ScheduleResult,
   Stop,
+  StructuredStop,
   TravelMode,
 } from './types';
 import { groupByDay } from './mock';
@@ -37,6 +38,31 @@ export function guessCoords(location: string, day = 1, index = 0) {
   };
 }
 
+/**
+ * Convert structured form rows directly into UI Stop[] (no LLM call).
+ * Coordinates use guessCoords; real geocoding happens in the optimize step.
+ */
+export function structuredStopsToUiStops(rows: StructuredStop[]): Stop[] {
+  return [...rows]
+    .sort((a, b) => a.day - b.day)
+    .map((s, idx) => {
+      const location = s.location.trim() || s.title.trim();
+      const coords = guessCoords(location, s.day, idx);
+      return {
+        id: s.id,
+        day: s.day,
+        date: s.date,
+        title: s.title.trim() || '未命名地点',
+        location,
+        lat: coords.lat,
+        lng: coords.lng,
+        durationMin: s.durationMin,
+        earliest: s.earliestStart,
+        fixedOrder: s.fixedOrder ?? false,
+      };
+    });
+}
+
 function backendStopToUiStop(stop: BackendTaskStop, day: number, index: number): Stop {
   const location = stop.resolvedPlace?.name || stop.rawLocation || stop.title || '未命名地点';
   const coords = stop.resolvedPlace || guessCoords(location, day, index);
@@ -44,6 +70,7 @@ function backendStopToUiStop(stop: BackendTaskStop, day: number, index: number):
   return {
     id: stop.id || `day-${day}-stop-${index + 1}`,
     day,
+    date: undefined,
     title: stop.title || location,
     location,
     lat: coords.lat,
@@ -114,9 +141,16 @@ export function uiStopsToBackendTrip(
   const days = Object.keys(daysMap)
     .map(Number)
     .sort((a, b) => a - b)
-    .map((day) => ({
-      day,
-      stops: daysMap[day].map((stop) => ({
+    .map((day) => {
+      const dayStops = daysMap[day];
+      const dayDate = dayStops
+        .map((s) => s.date)
+        .find((d): d is string => Boolean(d));
+
+      return {
+        day,
+        date: dayDate,
+        stops: dayStops.map((stop) => ({
         id: stop.id,
         title: stop.title,
         rawLocation: stop.location,
@@ -131,8 +165,9 @@ export function uiStopsToBackendTrip(
         latestArrival: stop.latest,
         fixedOrder: stop.fixedOrder,
         category: 'custom',
-      })),
-    }));
+        })),
+      };
+    });
 
   return {
     title: '前端桥接行程',
@@ -162,6 +197,7 @@ export function optimizedRouteToUi(result: OptimizeRouteResponse): {
     dayObj.orderedStops.map((stop, idx) => ({
       id: stop.id,
       day: stop.day,
+      date: undefined,
       title: stop.title,
       location: stop.resolvedPlace?.name || stop.rawLocation,
       lat: stop.resolvedPlace?.lat ?? guessCoords(stop.rawLocation, stop.day, idx).lat,

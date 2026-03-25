@@ -3,9 +3,24 @@ export type Objective = 'fastest' | 'shortest' | 'balanced';
 export type MapProvider = 'amap' | 'google' | 'mapbox';
 export type DataSource = 'api' | 'mock';
 
+/** One row in the structured input form — converted directly to Stop[] without an LLM call. */
+export type StructuredStop = {
+  id: string;
+  day: number;
+  date?: string;           // YYYY-MM-DD
+  title: string;
+  location: string;
+  earliestStart?: string;   // HH:MM
+  durationMin: number;
+  category: 'meeting' | 'meal' | 'sightseeing' | 'hotel' | 'transport' | 'custom';
+  fixedOrder?: boolean;
+  notes?: string;
+};
+
 export type Stop = {
   id: string;
   day: number;
+  date?: string; // YYYY-MM-DD
   title: string;
   location: string;
   lat: number;

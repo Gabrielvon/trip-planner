@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BackendOptimizedTrip,
   DataSource,
@@ -10,6 +10,7 @@ import {
   Stop,
   TravelMode,
 } from '@/lib/trip/types';
+import { StructuredStop } from '@/lib/trip/types';
 import {
   SAMPLE_TEXT,
   SEED_STOPS,
@@ -23,6 +24,10 @@ import {
   optimizeViaRouteOrMock,
   parseViaRouteOrMock,
 } from '@/lib/trip/parse-client';
+import TripMap from '@/components/trip/trip-map';
+import StructuredForm from '@/components/trip/structured-form';
+import FileImporter from '@/components/trip/file-importer';
+import { structuredStopsToUiStops } from '@/lib/trip/ui-mappers';
 
 export default function TripPage() {
   const [tripText, setTripText] = useState(SAMPLE_TEXT);
@@ -54,9 +59,34 @@ export default function TripPage() {
   const [parseLoading, setParseLoading] = useState(false);
   const [optimizeLoading, setOptimizeLoading] = useState(false);
   const [navLoading, setNavLoading] = useState(false);
+  const [optimizeSlow, setOptimizeSlow] = useState(false);
+  const [navSlow, setNavSlow] = useState(false);
+  const [selectedStopId, setSelectedStopId] = useState<string | undefined>(undefined);
+  const [inputMode, setInputMode] = useState<'text' | 'structured' | 'file'>('text');
+  // Stops imported from file; bumping formRevision forces StructuredForm to reload
+  const [formImportedStops, setFormImportedStops] = useState<StructuredStop[]>([]);
+  const [formRevision, setFormRevision] = useState(0);
 
   const parsedDayMap = useMemo(() => groupByDay(parsedStops), [parsedStops]);
   const dayStops = useMemo(() => groupByDay(optimizedStops), [optimizedStops]);
+
+  useEffect(() => {
+    if (!optimizeLoading) {
+      setOptimizeSlow(false);
+      return;
+    }
+    const timer = setTimeout(() => setOptimizeSlow(true), 1200);
+    return () => clearTimeout(timer);
+  }, [optimizeLoading]);
+
+  useEffect(() => {
+    if (!navLoading) {
+      setNavSlow(false);
+      return;
+    }
+    const timer = setTimeout(() => setNavSlow(true), 1200);
+    return () => clearTimeout(timer);
+  }, [navLoading]);
 
   async function handleParse() {
     setParseLoading(true);
@@ -119,7 +149,7 @@ export default function TripPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl p-8 space-y-8">
+    <div className="mx-auto max-w-7xl p-6 lg:p-8 space-y-8">
       <div className="space-y-3">
         <h1 className="text-3xl font-semibold">行程安排工具</h1>
         <p className="text-sm text-slate-600">
@@ -136,33 +166,90 @@ export default function TripPage() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(500px,560px)_minmax(0,1fr)]">
         <div className="space-y-4">
           <div className="rounded-2xl border p-4 space-y-3">
-            <div className="font-medium">输入</div>
-            <textarea
-              className="w-full min-h-[220px] rounded-xl border p-3"
-              value={tripText}
-              onChange={(e) => setTripText(e.target.value)}
-            />
-            <div className="grid grid-cols-2 gap-3">
+            {/* Input mode tabs */}
+            <div className="flex rounded-xl border overflow-hidden">
               <button
-                className="rounded-xl bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
-                onClick={handleParse}
-                disabled={parseLoading}
+                className={`flex-1 py-1.5 text-sm font-medium transition-colors ${
+                  inputMode === 'text'
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-500 hover:bg-slate-50'
+                }`}
+                onClick={() => setInputMode('text')}
               >
-                {parseLoading ? '解析中...' : '解析行程'}
+                自然语言
               </button>
               <button
-                className="rounded-xl border px-4 py-2"
-                onClick={() => {
-                  setTripText(SAMPLE_TEXT);
-                  setLastAction('已重新载入示例行程');
-                }}
+                className={`flex-1 py-1.5 text-sm font-medium transition-colors ${
+                  inputMode === 'structured'
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-500 hover:bg-slate-50'
+                }`}
+                onClick={() => setInputMode('structured')}
               >
-                载入示例
+                结构化表单
+              </button>
+              <button
+                className={`flex-1 py-1.5 text-sm font-medium transition-colors ${
+                  inputMode === 'file'
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-500 hover:bg-slate-50'
+                }`}
+                onClick={() => setInputMode('file')}
+              >
+                文件导入
               </button>
             </div>
+
+            {inputMode === 'text' ? (
+              <>
+                <textarea
+                  className="w-full min-h-[220px] rounded-xl border p-3"
+                  value={tripText}
+                  onChange={(e) => setTripText(e.target.value)}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    className="rounded-xl bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
+                    onClick={handleParse}
+                    disabled={parseLoading}
+                  >
+                    {parseLoading ? '解析中...' : '解析行程'}
+                  </button>
+                  <button
+                    className="rounded-xl border px-4 py-2"
+                    onClick={() => {
+                      setTripText(SAMPLE_TEXT);
+                      setLastAction('已重新载入示例行程');
+                    }}
+                  >
+                    载入示例
+                  </button>
+                </div>
+              </>
+            ) : inputMode === 'structured' ? (
+              <StructuredForm
+                key={formRevision}
+                stops={formImportedStops.length > 0 ? formImportedStops : undefined}
+                onApply={(rows) => {
+                  const stops = structuredStopsToUiStops(rows);
+                  setParsedStops(stops);
+                  setRuntimeSource('mock');
+                  setLastAction(`已从结构化表单导入 ${stops.length} 个地点，请执行优化`);
+                  setWarningMessage('');
+                }}
+              />
+            ) : (
+              <FileImporter
+                onToForm={(rows) => {
+                  setFormImportedStops(rows);
+                  setFormRevision((r) => r + 1);
+                  setInputMode('structured');
+                }}
+              />
+            )}
           </div>
 
           <div className="rounded-2xl border p-4 space-y-3">
@@ -219,11 +306,26 @@ export default function TripPage() {
               <button
                 className="rounded-xl border px-4 py-2 disabled:opacity-50"
                 onClick={handleNavigation}
-                disabled={navLoading}
+                disabled={navLoading || optimizeLoading}
               >
                 {navLoading ? '生成中...' : '生成导航'}
               </button>
             </div>
+
+            {(optimizeLoading || navLoading) && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 flex items-center gap-2">
+                <span className="inline-block h-3 w-3 rounded-full border-2 border-blue-300 border-t-blue-700 animate-spin" />
+                <span>
+                  {optimizeLoading
+                    ? optimizeSlow
+                      ? '优化仍在进行中，可能正在请求地图/地理编码服务，请稍候...'
+                      : '正在执行优化，请稍候...'
+                    : navSlow
+                    ? '导航链接生成较慢，可能在等待服务响应，请稍候...'
+                    : '正在生成导航链接，请稍候...'}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="rounded-2xl border p-4 space-y-3">
@@ -231,9 +333,13 @@ export default function TripPage() {
             {Object.keys(parsedDayMap).map((dayKey) => {
               const day = Number(dayKey);
               const items = parsedDayMap[day];
+              const dayDate = items.find((s) => s.date)?.date;
               return (
                 <div key={day} className="space-y-2">
-                  <div className="text-sm font-medium">Day {day}</div>
+                  <div className="text-sm font-medium">
+                    Day {day}
+                    {dayDate ? ` · ${dayDate}` : ''}
+                  </div>
                   {items.map((stop) => (
                     <div key={stop.id} className="rounded-xl bg-slate-50 p-3 text-sm">
                       <div className="font-medium">{stop.title}</div>
@@ -252,9 +358,24 @@ export default function TripPage() {
             <div className="space-y-4">
               {schedule.days.map((daySchedule) => (
                 <div key={daySchedule.day} className="space-y-2">
-                  <div className="font-medium">Day {daySchedule.day}</div>
+                  <div className="font-medium">
+                    Day {daySchedule.day}
+                    {daySchedule.timeline.find((s) => s.date)?.date
+                      ? ` · ${daySchedule.timeline.find((s) => s.date)?.date}`
+                      : ''}
+                  </div>
                   {daySchedule.timeline.map((item) => (
-                    <div key={item.id} className="rounded-xl bg-slate-50 p-3 text-sm">
+                    <div
+                      key={item.id}
+                      className={`rounded-xl p-3 text-sm cursor-pointer transition-colors ${
+                        selectedStopId === item.id
+                          ? 'bg-slate-200 ring-2 ring-slate-400'
+                          : 'bg-slate-50 hover:bg-slate-100'
+                      }`}
+                      onClick={() =>
+                        setSelectedStopId((prev) => (prev === item.id ? undefined : item.id))
+                      }
+                    >
                       <div className="flex items-center justify-between gap-3">
                         <div>{item.title}</div>
                         <div className="text-slate-500">
@@ -291,6 +412,13 @@ export default function TripPage() {
               )}
             </div>
           </div>
+
+          <TripMap
+            stops={optimizedStops}
+            mapProvider={mapProvider}
+            selectedStopId={selectedStopId}
+            onStopSelect={(id) => setSelectedStopId((prev) => (prev === id ? undefined : id))}
+          />
 
           <div className="rounded-2xl border p-4 text-sm text-slate-600">
             当前页面应该始终保持“薄”。  
