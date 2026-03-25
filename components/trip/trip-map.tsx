@@ -73,6 +73,26 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
   }, [stops]);
 
   useEffect(() => {
+    function handleSdkRuntimeError(event: ErrorEvent) {
+      const message = event?.message ?? '';
+      if (!message.includes('Unimplemented type: 3')) return;
+
+      setLoadError('AMap JS SDK 当前环境渲染异常，已自动降级。请稍后刷新重试或更换浏览器。');
+      if (mapRef.current) {
+        try {
+          mapRef.current.destroy();
+        } catch {
+          // Ignore destroy failures.
+        }
+        mapRef.current = null;
+      }
+    }
+
+    window.addEventListener('error', handleSdkRuntimeError);
+    return () => window.removeEventListener('error', handleSdkRuntimeError);
+  }, []);
+
+  useEffect(() => {
     if (mapProvider !== 'amap') {
       setLoadError('当前仅支持 AMap JS 预览，切换到 amap 可显示地图。');
       return;
@@ -94,11 +114,18 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
         if (!mapRef.current) {
           mapRef.current = new AMap.Map(mapElRef.current, {
             zoom: 11,
-            center: [139.7671, 35.6812],
+            center: [121.4737, 31.2304],
             viewMode: '2D',
           });
-          mapRef.current.addControl(new AMap.Scale());
-          mapRef.current.addControl(new AMap.ToolBar());
+
+          // Some environments may fail when attaching default controls.
+          try {
+            if (typeof AMap.Scale === 'function') {
+              mapRef.current.addControl(new AMap.Scale());
+            }
+          } catch {
+            // Keep the map usable even if a control fails to initialize.
+          }
         }
 
         setLoadError(null);
