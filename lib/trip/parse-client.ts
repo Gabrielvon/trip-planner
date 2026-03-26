@@ -75,10 +75,11 @@ async function mockOptimize(
 async function mockNavigation(
   stops: Stop[],
   mode: TravelMode,
+  mapProvider: MapProvider,
 ): Promise<NavigationResult> {
   await wait(300);
   return {
-    links: buildMockNavigationLinks(stops, mode),
+    links: buildMockNavigationLinks(stops, mode, mapProvider),
     source: 'mock',
     warning: '未检测到可用的 /api/trip/navigation-links，已自动回退到本地导航生成。',
   };
@@ -130,6 +131,7 @@ export async function navigationViaRouteOrMock(
   backendOptimizedTrip: BackendOptimizedTrip | null,
   optimizedStops: Stop[],
   mode: TravelMode,
+  mapProvider: MapProvider,
 ): Promise<NavigationResult> {
   if (backendOptimizedTrip) {
     try {
@@ -152,5 +154,5 @@ export async function navigationViaRouteOrMock(
     }
   }
 
-  return mockNavigation(optimizedStops, mode);
+  return mockNavigation(optimizedStops, mode, mapProvider);
 }

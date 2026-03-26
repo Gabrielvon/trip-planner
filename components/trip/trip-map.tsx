@@ -29,6 +29,18 @@ function hasRenderableStops(stops: Stop[]) {
   return stops.some((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng));
 }
 
+function hasWebGLSupport() {
+  if (typeof document === 'undefined') return false;
+  try {
+    const canvas = document.createElement('canvas');
+    return Boolean(
+      canvas.getContext('webgl') || canvas.getContext('experimental-webgl'),
+    );
+  } catch {
+    return false;
+  }
+}
+
 type MarkerMeta = { marker: any; color: string; idx: number };
 
 function buildLabelContent(idx: number, color: string, active: boolean) {
@@ -105,6 +117,11 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
 
     if (!mapElRef.current) return;
 
+    if (!hasWebGLSupport()) {
+      setLoadError('当前运行环境缺少 WebGL，AMap 2.0 容易触发渲染错误。请改用 Chrome/Edge 最新版。');
+      return;
+    }
+
     let destroyed = false;
 
     loadAmapJs(amapKey)
@@ -116,6 +133,7 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
             zoom: 11,
             center: [121.4737, 31.2304],
             viewMode: '2D',
+            mapStyle: 'amap://styles/normal',
           });
 
           // Some environments may fail when attaching default controls.

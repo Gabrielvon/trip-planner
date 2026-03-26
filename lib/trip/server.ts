@@ -304,8 +304,53 @@ function buildAmapNavigationUrl(stops: Array<{
   if (stops.length === 0) return undefined;
   const from = stops[0];
   const to = stops[stops.length - 1];
+  const mids = stops.slice(1, -1);
+  const waypoints = mids.map((s) => `${s.lng},${s.lat}`).join(';');
 
-  return `https://uri.amap.com/navigation?from=${from.lng},${from.lat},${encodeURIComponent(from.name)}&to=${to.lng},${to.lat},${encodeURIComponent(to.name)}&mode=${mode}`;
+  const amapMode =
+    mode === 'driving'
+      ? 'car'
+      : mode === 'walking'
+      ? 'walk'
+      : mode === 'cycling'
+      ? 'ride'
+      : 'bus';
+
+  let url = `https://uri.amap.com/navigation?from=${from.lng},${from.lat},${encodeURIComponent(from.name)}&to=${to.lng},${to.lat},${encodeURIComponent(to.name)}&mode=${amapMode}&policy=1&coordinate=gaode&callnative=0`;
+  if (waypoints) {
+    url += `&waypoints=${encodeURIComponent(waypoints)}&via=${encodeURIComponent(waypoints)}`;
+  }
+  return url;
+}
+
+function buildGoogleNavigationUrl(
+  stops: Array<{
+    lng: number;
+    lat: number;
+    name: string;
+  }>,
+  mode: TravelMode,
+) {
+  if (stops.length === 0) return undefined;
+  const from = stops[0];
+  const to = stops[stops.length - 1];
+  const mids = stops.slice(1, -1);
+
+  const googleMode =
+    mode === 'driving'
+      ? 'driving'
+      : mode === 'walking'
+      ? 'walking'
+      : mode === 'cycling'
+      ? 'bicycling'
+      : 'transit';
+
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&travelmode=${googleMode}`;
+  if (mids.length > 0) {
+    const waypoints = mids.map((s) => `${s.lat},${s.lng}`).join('|');
+    url += `&waypoints=${encodeURIComponent(waypoints)}`;
+  }
+  return url;
 }
 
 function hasMissingResolvedPlace(trip: BackendMultiDayTrip): boolean {
@@ -322,7 +367,7 @@ function hasMissingResolvedPlace(trip: BackendMultiDayTrip): boolean {
 export async function parseTripTextToDraft(
   body: ParseBody,
 ): Promise<ParseRouteResponse> {
-  const timezone = isNonEmptyString(body.timezone) ? body.timezone : 'Asia/Tokyo';
+  const timezone = isNonEmptyString(body.timezone) ? body.timezone : 'Asia/Shanghai';
   const mapProvider = body.mapProvider ?? 'amap';
   const text = isNonEmptyString(body.text) ? body.text.trim() : '';
 
@@ -356,9 +401,14 @@ export async function parseTripTextToDraft(
   // otherwise return a placeholder draft so the optimize step still has
   // something to work with.
   const looksLikeSample =
+    text.includes('上海') ||
+    text.includes('深圳') ||
+    text.includes('北京') ||
     text.includes('浅草寺') ||
-    text.includes('东京国立博物馆') ||
-    text.includes('横滨红砖仓库') ||
+    text.includes('东京') ||
+    text.includes('日本') ||
+    text.includes('纽约') ||
+    /New\s*York|Tokyo/i.test(text) ||
     /\bD2\b|Day\s*2|第二天/i.test(text);
 
   if (looksLikeSample) {
@@ -459,7 +509,10 @@ export async function buildNavigationLinksServer(
 
       return {
         day: dayObj.day,
-        navigationUrl: buildAmapNavigationUrl(stops, trip.transportMode),
+        navigationUrl:
+          trip.mapProvider === 'google'
+            ? buildGoogleNavigationUrl(stops, trip.transportMode)
+            : buildAmapNavigationUrl(stops, trip.transportMode),
       };
     }),
   };

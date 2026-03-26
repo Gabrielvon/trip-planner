@@ -6,14 +6,58 @@ import {
   TravelMode,
 } from './types';
 
-export const SAMPLE_TEXT = `请帮我安排一个五天行程（上海及周边）：
+export type SamplePreset = {
+  id: string;
+  label: string;
+  provider: MapProvider;
+  text: string;
+};
+
+export const SAMPLE_PRESETS: SamplePreset[] = [
+  {
+    id: 'shanghai-amap',
+    label: '上海及周边（高德）',
+    provider: 'amap',
+    text: `请帮我安排一个五天行程（上海及周边）：
 D1 2026-05-01 上午从上海虹桥站出发，先去外滩游览 60 分钟；步行到南京路步行街逛街 60 分钟；中午在城隍庙附近吃午饭 75 分钟；下午参观豫园 60 分钟；晚上回新天地酒店。
 D2 2026-05-02 上午从新天地酒店出发，参观上海博物馆 90 分钟；下午去陆家嘴东方明珠塔 90 分钟；参观上海中心大厦观光层 60 分钟；傍晚去田子坊逛逛 60 分钟；晚上回新天地酒店。
 D3 2026-05-03 早上从新天地酒店出发乘高铁去苏州，参观拙政园 90 分钟；隔壁苏州博物馆 60 分钟；中午在平江路吃饭 75 分钟；下午游览寒山寺 60 分钟；傍晚高铁返回新天地酒店。
 D4 2026-05-04 早上从新天地酒店出发驱车去朱家角古镇，游览水乡 120 分钟；古镇内午餐 60 分钟；游览课植园 60 分钟；下午返回新天地酒店。
-D5 2026-05-05 早上从新天地酒店出发乘高铁去杭州，游览西湖断桥 60 分钟；参观雷峰塔 60 分钟；在河坊街午餐 75 分钟；下午拜访灵隐寺 90 分钟；傍晚返回上海浦东机场结束行程。`;
+D5 2026-05-05 早上从新天地酒店出发乘高铁去杭州，游览西湖断桥 60 分钟；参观雷峰塔 60 分钟；在河坊街午餐 75 分钟；下午拜访灵隐寺 90 分钟；傍晚返回上海浦东机场结束行程。`,
+  },
+  {
+    id: 'shenzhen-amap',
+    label: '深圳城市一日（高德）',
+    provider: 'amap',
+    text: `请帮我安排一个深圳一日行程：
+D1 2026-06-01 上午从深圳北站出发，先到莲花山公园停留 60 分钟；再去市民中心参观 60 分钟；中午在福田中心区吃饭 75 分钟；下午到华强北逛街 90 分钟；傍晚去深圳湾公园散步 60 分钟；晚上回福田酒店。`,
+  },
+  {
+    id: 'beijing-amap',
+    label: '北京经典一日（高德）',
+    provider: 'amap',
+    text: `请帮我安排一个北京一日行程：
+D1 2026-06-08 上午从北京南站出发，先去天安门广场停留 45 分钟；再游览故宫 120 分钟；中午在王府井附近吃饭 75 分钟；下午去景山公园 60 分钟；傍晚返回东直门酒店。`,
+  },
+  {
+    id: 'japan-google',
+    label: '东京一日（Google Maps）',
+    provider: 'google',
+    text: `Please plan a one-day Tokyo itinerary:
+Day 1 starts at Tokyo Station, then Senso-ji, Ueno Park, Tokyo Skytree, Shibuya Crossing, and ends at Shinjuku hotel in the evening.`,
+  },
+  {
+    id: 'newyork-google',
+    label: '纽约一日（Google Maps）',
+    provider: 'google',
+    text: `Please plan a one-day New York itinerary:
+Day 1 starts at Penn Station, then Times Square, Central Park South, The Met, Brooklyn Bridge Park, and ends at JFK Airport in the evening.`,
+  },
+];
 
-export const SEED_STOPS: Stop[] = [
+export const SAMPLE_TEXT = SAMPLE_PRESETS[0].text;
+
+const SHANGHAI_SEED_STOPS: Stop[] = [
   // Day 1: 上海外滩 & 南京路 (2026-05-01)
   { id: 'd1-1', day: 1, date: '2026-05-01', title: '虹桥站出发', location: '上海虹桥火车站', lat: 31.1945, lng: 121.3209, durationMin: 10, earliest: '09:00', fixedOrder: true },
   { id: 'd1-2', day: 1, date: '2026-05-01', title: '外滩', location: '外滩', lat: 31.2394, lng: 121.4904, durationMin: 60 },
@@ -49,6 +93,45 @@ export const SEED_STOPS: Stop[] = [
   { id: 'd5-5', day: 5, date: '2026-05-05', title: '灵隐寺', location: '灵隐寺', lat: 30.2387, lng: 120.1012, durationMin: 90 },
   { id: 'd5-6', day: 5, date: '2026-05-05', title: '浦东机场返程', location: '上海浦东国际机场', lat: 31.1525, lng: 121.8093, durationMin: 10, fixedOrder: true },
 ];
+
+const SHENZHEN_SEED_STOPS: Stop[] = [
+  { id: 'sz-1', day: 1, date: '2026-06-01', title: '深圳北站出发', location: '深圳北站', lat: 22.6087, lng: 114.0294, durationMin: 10, earliest: '09:00', fixedOrder: true },
+  { id: 'sz-2', day: 1, date: '2026-06-01', title: '莲花山公园', location: '莲花山公园', lat: 22.5523, lng: 114.0542, durationMin: 60 },
+  { id: 'sz-3', day: 1, date: '2026-06-01', title: '市民中心', location: '深圳市民中心', lat: 22.5431, lng: 114.0579, durationMin: 60 },
+  { id: 'sz-4', day: 1, date: '2026-06-01', title: '福田午餐', location: '福田中心区', lat: 22.5416, lng: 114.0678, durationMin: 75, latest: '13:30' },
+  { id: 'sz-5', day: 1, date: '2026-06-01', title: '华强北', location: '华强北', lat: 22.5464, lng: 114.0868, durationMin: 90 },
+  { id: 'sz-6', day: 1, date: '2026-06-01', title: '深圳湾公园', location: '深圳湾公园', lat: 22.5106, lng: 113.9422, durationMin: 60 },
+  { id: 'sz-7', day: 1, date: '2026-06-01', title: '返回福田酒店', location: '福田酒店', lat: 22.5401, lng: 114.0646, durationMin: 10, fixedOrder: true },
+];
+
+const BEIJING_SEED_STOPS: Stop[] = [
+  { id: 'bj-1', day: 1, date: '2026-06-08', title: '北京南站出发', location: '北京南站', lat: 39.8652, lng: 116.3786, durationMin: 10, earliest: '08:30', fixedOrder: true },
+  { id: 'bj-2', day: 1, date: '2026-06-08', title: '天安门广场', location: '天安门广场', lat: 39.9087, lng: 116.3975, durationMin: 45 },
+  { id: 'bj-3', day: 1, date: '2026-06-08', title: '故宫', location: '故宫博物院', lat: 39.9163, lng: 116.3972, durationMin: 120 },
+  { id: 'bj-4', day: 1, date: '2026-06-08', title: '王府井午餐', location: '王府井', lat: 39.9149, lng: 116.4119, durationMin: 75, latest: '13:30' },
+  { id: 'bj-5', day: 1, date: '2026-06-08', title: '景山公园', location: '景山公园', lat: 39.924, lng: 116.3964, durationMin: 60 },
+  { id: 'bj-6', day: 1, date: '2026-06-08', title: '返回东直门酒店', location: '东直门', lat: 39.941, lng: 116.4335, durationMin: 10, fixedOrder: true },
+];
+
+const TOKYO_SEED_STOPS: Stop[] = [
+  { id: 'jp-1', day: 1, date: '2026-06-15', title: 'Tokyo Station Start', location: 'Tokyo Station', lat: 35.6812, lng: 139.7671, durationMin: 10, earliest: '09:00', fixedOrder: true },
+  { id: 'jp-2', day: 1, date: '2026-06-15', title: 'Senso-ji', location: 'Senso-ji', lat: 35.7148, lng: 139.7967, durationMin: 60 },
+  { id: 'jp-3', day: 1, date: '2026-06-15', title: 'Ueno Park', location: 'Ueno Park', lat: 35.7142, lng: 139.7741, durationMin: 60 },
+  { id: 'jp-4', day: 1, date: '2026-06-15', title: 'Tokyo Skytree', location: 'Tokyo Skytree', lat: 35.7101, lng: 139.8107, durationMin: 60 },
+  { id: 'jp-5', day: 1, date: '2026-06-15', title: 'Shibuya Crossing', location: 'Shibuya Crossing', lat: 35.6595, lng: 139.7005, durationMin: 60 },
+  { id: 'jp-6', day: 1, date: '2026-06-15', title: 'Shinjuku Hotel End', location: 'Shinjuku', lat: 35.6896, lng: 139.7006, durationMin: 10, fixedOrder: true },
+];
+
+const NEWYORK_SEED_STOPS: Stop[] = [
+  { id: 'ny-1', day: 1, date: '2026-06-22', title: 'Penn Station Start', location: 'Penn Station', lat: 40.7506, lng: -73.9935, durationMin: 10, earliest: '09:00', fixedOrder: true },
+  { id: 'ny-2', day: 1, date: '2026-06-22', title: 'Times Square', location: 'Times Square', lat: 40.758, lng: -73.9855, durationMin: 45 },
+  { id: 'ny-3', day: 1, date: '2026-06-22', title: 'Central Park South', location: 'Central Park South', lat: 40.7661, lng: -73.9776, durationMin: 60 },
+  { id: 'ny-4', day: 1, date: '2026-06-22', title: 'The Met', location: 'The Metropolitan Museum of Art', lat: 40.7794, lng: -73.9632, durationMin: 90 },
+  { id: 'ny-5', day: 1, date: '2026-06-22', title: 'Brooklyn Bridge Park', location: 'Brooklyn Bridge Park', lat: 40.7003, lng: -73.9967, durationMin: 60 },
+  { id: 'ny-6', day: 1, date: '2026-06-22', title: 'JFK End', location: 'JFK Airport', lat: 40.6413, lng: -73.7781, durationMin: 10, fixedOrder: true },
+];
+
+export const SEED_STOPS: Stop[] = SHANGHAI_SEED_STOPS;
 
 function toMinutes(t?: string) {
   if (!t) return undefined;
@@ -265,20 +348,84 @@ export function buildMultiDaySchedule(
 }
 
 export function parseTripTextMock(raw: string): Stop[] {
-  if (!raw.trim()) return SEED_STOPS;
-  return SEED_STOPS;
+  const text = raw.trim();
+  if (!text) return SHANGHAI_SEED_STOPS;
+
+  if (text.includes('深圳')) return SHENZHEN_SEED_STOPS;
+  if (text.includes('北京')) return BEIJING_SEED_STOPS;
+  if (/东京|日本|Tokyo|Japan/i.test(text)) return TOKYO_SEED_STOPS;
+  if (/纽约|纽约市|New\s*York|NYC/i.test(text)) return NEWYORK_SEED_STOPS;
+  return SHANGHAI_SEED_STOPS;
 }
 
-export function buildMockNavigationLinks(stops: Stop[], mode: TravelMode) {
+function mapAmapMode(mode: TravelMode) {
+  switch (mode) {
+    case 'driving':
+      return 'car';
+    case 'walking':
+      return 'walk';
+    case 'cycling':
+      return 'ride';
+    default:
+      return 'bus';
+  }
+}
+
+function mapGoogleMode(mode: TravelMode) {
+  switch (mode) {
+    case 'driving':
+      return 'driving';
+    case 'walking':
+      return 'walking';
+    case 'cycling':
+      return 'bicycling';
+    default:
+      return 'transit';
+  }
+}
+
+function buildAmapUrl(dayStops: Stop[], mode: TravelMode) {
+  const from = dayStops[0];
+  const to = dayStops[dayStops.length - 1];
+  const mids = dayStops.slice(1, -1);
+  const waypoints = mids.map((s) => `${s.lng},${s.lat}`).join(';');
+
+  let url = `https://uri.amap.com/navigation?from=${from.lng},${from.lat},${encodeURIComponent(from.location)}&to=${to.lng},${to.lat},${encodeURIComponent(to.location)}&mode=${mapAmapMode(mode)}&policy=1&coordinate=gaode&callnative=0`;
+  if (waypoints) {
+    url += `&waypoints=${encodeURIComponent(waypoints)}&via=${encodeURIComponent(waypoints)}`;
+  }
+  return url;
+}
+
+function buildGoogleUrl(dayStops: Stop[], mode: TravelMode) {
+  const from = dayStops[0];
+  const to = dayStops[dayStops.length - 1];
+  const mids = dayStops.slice(1, -1);
+  const waypoints = mids.map((s) => `${s.lat},${s.lng}`).join('|');
+
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&travelmode=${mapGoogleMode(mode)}`;
+  if (waypoints) {
+    url += `&waypoints=${encodeURIComponent(waypoints)}`;
+  }
+  return url;
+}
+
+export function buildMockNavigationLinks(
+  stops: Stop[],
+  mode: TravelMode,
+  provider: MapProvider = 'amap',
+) {
   const days = groupByDay(stops);
   return Object.keys(days).map((dayKey) => {
     const dayStops = days[Number(dayKey)];
-    const from = dayStops[0];
-    const to = dayStops[dayStops.length - 1];
+    const url =
+      provider === 'google'
+        ? buildGoogleUrl(dayStops, mode)
+        : buildAmapUrl(dayStops, mode);
 
     return {
       day: Number(dayKey),
-      url: `https://uri.amap.com/navigation?from=${from.lng},${from.lat},${encodeURIComponent(from.location)}&to=${to.lng},${to.lat},${encodeURIComponent(to.location)}&mode=${mode}`,
+      url,
     };
   });
 }

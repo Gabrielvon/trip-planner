@@ -12,6 +12,7 @@ import {
 } from '@/lib/trip/types';
 import { StructuredStop } from '@/lib/trip/types';
 import {
+  SAMPLE_PRESETS,
   SAMPLE_TEXT,
   SEED_STOPS,
   buildMultiDaySchedule,
@@ -63,6 +64,7 @@ export default function TripPage() {
   const [navSlow, setNavSlow] = useState(false);
   const [selectedStopId, setSelectedStopId] = useState<string | undefined>(undefined);
   const [inputMode, setInputMode] = useState<'text' | 'structured' | 'file'>('text');
+  const [samplePresetId, setSamplePresetId] = useState(SAMPLE_PRESETS[0].id);
   // Stops imported from file; bumping formRevision forces StructuredForm to reload
   const [formImportedStops, setFormImportedStops] = useState<StructuredStop[]>([]);
   const [formRevision, setFormRevision] = useState(0);
@@ -138,6 +140,7 @@ export default function TripPage() {
         backendOptimizedTrip,
         optimizedStops,
         travelMode,
+        mapProvider,
       );
       setNavigationLinks(result.links);
       setRuntimeSource(result.source);
@@ -211,6 +214,17 @@ export default function TripPage() {
                   onChange={(e) => setTripText(e.target.value)}
                 />
                 <div className="grid grid-cols-2 gap-3">
+                  <select
+                    className="rounded-xl border p-2"
+                    value={samplePresetId}
+                    onChange={(e) => setSamplePresetId(e.target.value)}
+                  >
+                    {SAMPLE_PRESETS.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     className="rounded-xl bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
                     onClick={handleParse}
@@ -221,8 +235,12 @@ export default function TripPage() {
                   <button
                     className="rounded-xl border px-4 py-2"
                     onClick={() => {
-                      setTripText(SAMPLE_TEXT);
-                      setLastAction('已重新载入示例行程');
+                      const preset =
+                        SAMPLE_PRESETS.find((item) => item.id === samplePresetId) ||
+                        SAMPLE_PRESETS[0];
+                      setTripText(preset.text);
+                      setMapProvider(preset.provider);
+                      setLastAction(`已载入示例：${preset.label}`);
                     }}
                   >
                     载入示例
