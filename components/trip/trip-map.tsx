@@ -84,9 +84,19 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
       }));
   }, [stops]);
 
+  const googleEmbedUrl = useMemo(() => {
+    if (routePoints.length === 0) return '';
+    const first = routePoints[0];
+    return `https://www.google.com/maps?q=${first.lat},${first.lng}&z=12&output=embed`;
+  }, [routePoints]);
+
   useEffect(() => {
     function handleSdkRuntimeError(event: ErrorEvent) {
       const message = event?.message ?? '';
+      if (message.includes('USERKEY_PLAT_NOMATCH')) {
+        setLoadError('高德 JS Key 与当前域名不匹配，已暂停地图加载。请检查 NEXT_PUBLIC_AMAP_JS_KEY 的白名单设置。');
+        return;
+      }
       if (!message.includes('Unimplemented type: 3')) return;
 
       setLoadError('AMap JS SDK 当前环境渲染异常，已自动降级。请稍后刷新重试或更换浏览器。');
@@ -106,7 +116,14 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
 
   useEffect(() => {
     if (mapProvider !== 'amap') {
-      setLoadError('当前仅支持 AMap JS 预览，切换到 amap 可显示地图。');
+      setLoadError(null);
+      return;
+    }
+
+    if (!mapElRef.current) return;
+
+    if (routePoints.length === 0) {
+      setLoadError(null);
       return;
     }
 
@@ -114,8 +131,6 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
       setLoadError('缺少 NEXT_PUBLIC_AMAP_JS_KEY，无法加载地图。');
       return;
     }
-
-    if (!mapElRef.current) return;
 
     if (!hasWebGLSupport()) {
       setLoadError('当前运行环境缺少 WebGL，AMap 2.0 容易触发渲染错误。请改用 Chrome/Edge 最新版。');
@@ -157,7 +172,21 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
     return () => {
       destroyed = true;
     };
-  }, [amapKey, mapProvider]);
+  }, [amapKey, mapProvider, routePoints]);
+
+  useEffect(() => {
+    if (mapProvider === 'amap') return;
+    if (mapRef.current) {
+      try {
+        mapRef.current.destroy();
+      } catch {
+        // Ignore destroy failures.
+      }
+      mapRef.current = null;
+    }
+    overlaysRef.current = [];
+    markerMetaRef.current.clear();
+  }, [mapProvider]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -267,7 +296,26 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
           {loadError}
         </div>
       ) : null}
-      <div ref={mapElRef} className="h-[420px] w-full overflow-hidden rounded-xl bg-slate-100" />
+      {mapProvider === 'google' ? (
+        googleEmbedUrl ? (
+          <iframe
+            className="h-[420px] w-full overflow-hidden rounded-xl bg-slate-100"
+            src={googleEmbedUrl}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        ) : (
+          <div className="h-[420px] w-full rounded-xl bg-slate-100 text-sm text-slate-500 flex items-center justify-center">
+            暂无行程数据
+          </div>
+        )
+      ) : mapProvider === 'amap' ? (
+        <div ref={mapElRef} className="h-[420px] w-full overflow-hidden rounded-xl bg-slate-100" />
+      ) : (
+        <div className="h-[420px] w-full rounded-xl bg-slate-100 text-sm text-slate-500 flex items-center justify-center">
+          当前地图提供商暂无预览
+        </div>
+      )}
     </div>
   );
 }

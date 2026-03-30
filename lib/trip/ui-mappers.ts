@@ -246,3 +246,19 @@ export function optimizedRouteToUi(result: OptimizeRouteResponse): {
     backendOptimizedTrip: result.optimizedTrip,
   };
 }
+
+export function uiStopsToStructuredStops(stops: Stop[]): StructuredStop[] {
+  return [...stops]
+    .sort((a, b) => (a.day === b.day ? a.id.localeCompare(b.id) : a.day - b.day))
+    .map((s) => ({
+      id: s.id,
+      day: s.day,
+      date: s.date,
+      title: s.title,
+      location: s.location,
+      earliestStart: s.earliest,
+      durationMin: s.durationMin,
+      category: 'custom',
+      fixedOrder: s.fixedOrder,
+    }));
+}

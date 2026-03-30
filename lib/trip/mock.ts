@@ -388,11 +388,13 @@ function buildAmapUrl(dayStops: Stop[], mode: TravelMode) {
   const from = dayStops[0];
   const to = dayStops[dayStops.length - 1];
   const mids = dayStops.slice(1, -1);
-  const waypoints = mids.map((s) => `${s.lng},${s.lat}`).join(';');
 
   let url = `https://uri.amap.com/navigation?from=${from.lng},${from.lat},${encodeURIComponent(from.location)}&to=${to.lng},${to.lat},${encodeURIComponent(to.location)}&mode=${mapAmapMode(mode)}&policy=1&coordinate=gaode&callnative=0`;
-  if (waypoints) {
-    url += `&waypoints=${encodeURIComponent(waypoints)}&via=${encodeURIComponent(waypoints)}`;
+  
+  // Use all intermediate coordinates for better AMap URI compatibility.
+  if (mids.length > 0) {
+    const waypointCoords = mids.map((s) => `${s.lng},${s.lat}`).join(';');
+    url += `&waypoints=${encodeURIComponent(waypointCoords)}`;
   }
   return url;
 }
@@ -401,10 +403,10 @@ function buildGoogleUrl(dayStops: Stop[], mode: TravelMode) {
   const from = dayStops[0];
   const to = dayStops[dayStops.length - 1];
   const mids = dayStops.slice(1, -1);
-  const waypoints = mids.map((s) => `${s.lat},${s.lng}`).join('|');
 
-  let url = `https://www.google.com/maps/dir/?api=1&origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&travelmode=${mapGoogleMode(mode)}`;
-  if (waypoints) {
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.location || from.title)}&destination=${encodeURIComponent(to.location || to.title)}&travelmode=${mapGoogleMode(mode)}`;
+  if (mids.length > 0) {
+    const waypoints = mids.map((s) => s.location || s.title).join('|');
     url += `&waypoints=${encodeURIComponent(waypoints)}`;
   }
   return url;

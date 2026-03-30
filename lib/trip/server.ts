@@ -305,7 +305,6 @@ function buildAmapNavigationUrl(stops: Array<{
   const from = stops[0];
   const to = stops[stops.length - 1];
   const mids = stops.slice(1, -1);
-  const waypoints = mids.map((s) => `${s.lng},${s.lat}`).join(';');
 
   const amapMode =
     mode === 'driving'
@@ -316,9 +315,13 @@ function buildAmapNavigationUrl(stops: Array<{
       ? 'ride'
       : 'bus';
 
+  // AMap URI: waypoints are more reliable as coordinate pairs.
   let url = `https://uri.amap.com/navigation?from=${from.lng},${from.lat},${encodeURIComponent(from.name)}&to=${to.lng},${to.lat},${encodeURIComponent(to.name)}&mode=${amapMode}&policy=1&coordinate=gaode&callnative=0`;
-  if (waypoints) {
-    url += `&waypoints=${encodeURIComponent(waypoints)}&via=${encodeURIComponent(waypoints)}`;
+
+  // Include all intermediate waypoints.
+  if (mids.length > 0) {
+    const waypointCoords = mids.map((s) => `${s.lng},${s.lat}`).join(';');
+    url += `&waypoints=${encodeURIComponent(waypointCoords)}`;
   }
   return url;
 }
@@ -345,9 +348,9 @@ function buildGoogleNavigationUrl(
       ? 'bicycling'
       : 'transit';
 
-  let url = `https://www.google.com/maps/dir/?api=1&origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&travelmode=${googleMode}`;
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from.name)}&destination=${encodeURIComponent(to.name)}&travelmode=${googleMode}`;
   if (mids.length > 0) {
-    const waypoints = mids.map((s) => `${s.lat},${s.lng}`).join('|');
+    const waypoints = mids.map((s) => s.name).join('|');
     url += `&waypoints=${encodeURIComponent(waypoints)}`;
   }
   return url;
