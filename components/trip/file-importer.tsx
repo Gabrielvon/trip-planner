@@ -186,7 +186,7 @@ export default function FileImporter({ onToForm }: Props) {
           点击或拖拽文件到此处
         </div>
         <div className="text-slate-400 text-xs mt-1">
-          支持 .csv · .md · .ics（日历）
+          支持 .csv/.tsv/.txt · .md · .ics（日历）
         </div>
       </div>
 

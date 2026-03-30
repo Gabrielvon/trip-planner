@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node -e \"require('fs').rmSync('.test-dist', { recursive: true, force: true })\" && tsc --module commonjs --target es2020 --outDir .test-dist lib/trip/types.ts lib/trip/parse-file.ts && node --test --experimental-test-isolation=none tests/parse-file.test.mjs"
   },
   "dependencies": {
     "next": "^15.2.4",

@@ -44,6 +44,11 @@ export function getSourceLabel(source: DataSource) {
   return sourceLabel(source);
 }
 
+type ParseContext = {
+  timezone?: string;
+  mapProvider?: MapProvider;
+};
+
 async function mockParse(text: string): Promise<ParseResult> {
   await wait(500);
   return {
@@ -85,12 +90,17 @@ async function mockNavigation(
   };
 }
 
-export async function parseViaRouteOrMock(text: string): Promise<ParseResult> {
+export async function parseViaRouteOrMock(
+  text: string,
+  context: ParseContext = {},
+): Promise<ParseResult> {
   try {
+    const timezone = context.timezone || 'Asia/Shanghai';
+    const mapProvider = context.mapProvider || 'amap';
     const response = await requestJson<ParseRouteResponse>('/api/trip/parse', {
       text,
-      timezone: 'Asia/Tokyo',
-      mapProvider: 'amap',
+      timezone,
+      mapProvider,
       calendarBlocks: [],
     });
 
