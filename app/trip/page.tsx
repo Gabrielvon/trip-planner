@@ -124,7 +124,8 @@ export default function TripPage() {
     setLastAction('正在解析自然语言行程');
 
     try {
-      const result = await parseViaRouteOrMock(tripText);
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai';
+      const result = await parseViaRouteOrMock(tripText, { timezone, mapProvider });
       setParsedStops(result.stops);
       setRuntimeSource(result.source);
       if (result.warning) setWarningMessage(result.warning);

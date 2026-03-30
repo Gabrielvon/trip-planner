@@ -161,7 +161,7 @@ Rules:
 10. For hardConstraints, extract explicit time windows, fixed appointments, or logistical anchors (flights, trains).
 11. title should be a concise trip name derived from the input.
 12. timezone: infer from location names if possible (e.g. Tokyo → Asia/Tokyo, Beijing → Asia/Shanghai). Default to "Asia/Shanghai".
-13. All string fields that are unknown must be empty string "", never null or undefined.
+13. For fields whose schema allows null, use null when unknown. For required non-null string fields, use empty string "" when unknown.
 
 Return ONLY valid JSON matching the schema. No explanations.`;
 

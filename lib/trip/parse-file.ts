@@ -54,12 +54,53 @@ function toTime(raw: string): string | undefined {
   return undefined;
 }
 
+function parseQuotedDelimitedLine(line: string, delim: ',' | '\t'): string[] {
+  const out: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+
+    if (ch === '"') {
+      // Escaped quote inside quoted cell: ""
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (ch === delim && !inQuotes) {
+      out.push(current.trim());
+      current = '';
+      continue;
+    }
+
+    current += ch;
+  }
+
+  out.push(current.trim());
+  return out;
+}
+
+function parseLiteralDelimitedLine(line: string, delim: ',' | '\t'): string[] {
+  return line.split(delim).map((cell) => cell.trim());
+}
+
+type DelimitedParseOptions = {
+  delim?: ',' | '\t';
+  quotedFields?: boolean;
+};
+
 // ---------------------------------------------------------------------------
 // CSV parser
 // ---------------------------------------------------------------------------
 // Supports comma or tab delimited. First row can be a header (auto-detected).
 // Column order: 天,名称,地址,到达时间,时长,类型,备注
-export function parseCSV(text: string): StructuredStop[] {
+function parseDelimitedText(text: string, options: DelimitedParseOptions = {}): StructuredStop[] {
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -67,17 +108,19 @@ export function parseCSV(text: string): StructuredStop[] {
 
   if (lines.length === 0) return [];
 
-  // Detect delimiter
-  const delim = lines[0].includes('\t') ? '\t' : ',';
+  const delim = options.delim ?? (lines[0].includes('\t') ? '\t' : ',');
+  const parseLine = options.quotedFields
+    ? parseQuotedDelimitedLine
+    : parseLiteralDelimitedLine;
 
   // Skip header row if it looks like one (first cell is not a number)
-  const firstCell = lines[0].split(delim)[0].trim();
+  const firstCell = parseLine(lines[0], delim)[0]?.trim() ?? '';
   const startIndex = /^\d+$/.test(firstCell) ? 0 : 1;
 
   const stops: StructuredStop[] = [];
 
   for (let i = startIndex; i < lines.length; i++) {
-    const cols = lines[i].split(delim).map((c) => c.trim());
+    const cols = parseLine(lines[i], delim);
     if (cols.length < 2) continue;
 
     const [dayRaw, title, location = '', timeRaw = '', durRaw = '', catRaw = '', notes = ''] =
@@ -98,6 +141,10 @@ export function parseCSV(text: string): StructuredStop[] {
   }
 
   return stops;
+}
+
+export function parseCSV(text: string): StructuredStop[] {
+  return parseDelimitedText(text, { delim: ',', quotedFields: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -308,9 +355,20 @@ export function parseFileText(filename: string, text: string): ParseResult {
     } else if (ext === 'md' || ext === 'markdown') {
       stops = parseMarkdown(text);
       format = 'Markdown 表格 (.md)';
-    } else if (ext === 'csv' || ext === 'tsv' || ext === 'txt') {
+    } else if (ext === 'csv') {
       stops = parseCSV(text);
-      format = 'CSV (.csv)';
+      format =
+        ext === 'csv'
+          ? 'CSV (.csv)'
+          : ext === 'tsv'
+            ? 'TSV (.tsv)'
+            : '文本 (.txt, 自动识别分隔符)';
+    } else if (ext === 'tsv') {
+      stops = parseDelimitedText(text, { delim: '\t' });
+      format = 'TSV (.tsv)';
+    } else if (ext === 'txt') {
+      stops = parseDelimitedText(text);
+      format = 'Text (.txt, auto-detect delimiter)';
     } else if (ext === 'xlsx' || ext === 'xls') {
       return {
         ok: false,
