@@ -1,16 +1,16 @@
 import {
   DataSource,
+  DraftStop,
+  MapProvider,
   NavigationLinksRouteResponse,
   NavigationResult,
+  Objective,
+  OptimizedTrip,
   OptimizeResult,
   OptimizeRouteResponse,
   ParseResult,
   ParseRouteResponse,
-  Stop,
   TravelMode,
-  Objective,
-  MapProvider,
-  BackendOptimizedTrip,
 } from './types';
 import {
   buildMockNavigationLinks,
@@ -19,9 +19,64 @@ import {
   parseTripTextMock,
   wait,
 } from './mock';
-import { optimizedRouteToUi, tripToUiStops, uiStopsToBackendTrip } from './ui-mappers';
+import {
+  draftTripToStops,
+  optimizedRouteToClientModel,
+  stopsToDraftTrip,
+} from './canonical-trip';
 
-async function requestJson<T>(url: string, body: unknown): Promise<T> {
+type TripAction = 'parse' | 'optimize' | 'navigation';
+
+type ParseContext = {
+  timezone?: string;
+  mapProvider?: MapProvider;
+};
+
+export class TripClientError extends Error {
+  action: TripAction;
+
+  constructor(action: TripAction, message: string) {
+    super(message);
+    this.name = 'TripClientError';
+    this.action = action;
+  }
+}
+
+function sourceLabel(source: DataSource) {
+  switch (source) {
+    case 'api':
+      return 'Live service';
+    case 'mock':
+      return 'Demo mode';
+    case 'manual':
+      return 'Manual draft';
+    default:
+      return 'Unknown source';
+  }
+}
+
+export function getSourceLabel(source: DataSource) {
+  return sourceLabel(source);
+}
+
+async function extractErrorMessage(response: Response, fallback: string) {
+  const raw = await response.text();
+
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as { error?: string; detail?: string };
+    return parsed.detail || parsed.error || fallback;
+  } catch {
+    return raw;
+  }
+}
+
+async function requestJson<T>(
+  url: string,
+  body: unknown,
+  action: TripAction,
+): Promise<T> {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -29,37 +84,25 @@ async function requestJson<T>(url: string, body: unknown): Promise<T> {
   });
 
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `Request failed: ${response.status}`);
+    const fallback = `Request failed: ${response.status}`;
+    const message = await extractErrorMessage(response, fallback);
+    throw new TripClientError(action, message);
   }
 
   return (await response.json()) as T;
 }
 
-function sourceLabel(source: DataSource) {
-  return source === 'api' ? '真实 API' : 'Mock 回退';
-}
-
-export function getSourceLabel(source: DataSource) {
-  return sourceLabel(source);
-}
-
-type ParseContext = {
-  timezone?: string;
-  mapProvider?: MapProvider;
-};
-
-async function mockParse(text: string): Promise<ParseResult> {
+export async function parseViaDemo(text: string): Promise<ParseResult> {
   await wait(500);
   return {
     stops: parseTripTextMock(text),
     source: 'mock',
-    warning: '未检测到可用的 /api/trip/parse，已自动回退到本地 mock。',
+    warning: 'Demo mode: using the local sample parser instead of the live parse API.',
   };
 }
 
-async function mockOptimize(
-  stops: Stop[],
+export async function optimizeViaDemo(
+  stops: DraftStop[],
   travelMode: TravelMode,
   objective: Objective,
   mapProvider: MapProvider,
@@ -72,13 +115,13 @@ async function mockOptimize(
     optimizedStops,
     schedule,
     source: 'mock',
-    warning: '未检测到可用的 /api/trip/optimize，已自动回退到本地优化器。',
-    backendOptimizedTrip: null,
+    warning: 'Demo mode: using the local optimizer instead of the live optimize API.',
+    optimizedTrip: null,
   };
 }
 
-async function mockNavigation(
-  stops: Stop[],
+export async function navigationViaDemo(
+  stops: DraftStop[],
   mode: TravelMode,
   mapProvider: MapProvider,
 ): Promise<NavigationResult> {
@@ -86,83 +129,81 @@ async function mockNavigation(
   return {
     links: buildMockNavigationLinks(stops, mode, mapProvider),
     source: 'mock',
-    warning: '未检测到可用的 /api/trip/navigation-links，已自动回退到本地导航生成。',
+    warning: 'Demo mode: using local navigation links instead of the live navigation API.',
   };
 }
 
-export async function parseViaRouteOrMock(
+export async function parseViaRoute(
   text: string,
   context: ParseContext = {},
 ): Promise<ParseResult> {
-  try {
-    const timezone = context.timezone || 'Asia/Shanghai';
-    const mapProvider = context.mapProvider || 'amap';
-    const response = await requestJson<ParseRouteResponse>('/api/trip/parse', {
+  const timezone = context.timezone || 'Asia/Shanghai';
+  const mapProvider = context.mapProvider || 'amap';
+  const response = await requestJson<ParseRouteResponse>(
+    '/api/trip/parse',
+    {
       text,
       timezone,
       mapProvider,
       calendarBlocks: [],
-    });
+    },
+    'parse',
+  );
 
-    return {
-      stops: tripToUiStops(response.trip),
-      source: 'api',
-      warning: response.warnings?.[0],
-    };
-  } catch {
-    return mockParse(text);
-  }
+  return {
+    stops: draftTripToStops(response.trip),
+    source: 'api',
+    warning: response.warnings?.[0],
+  };
 }
 
-export async function optimizeViaRouteOrMock(
-  stops: Stop[],
+export async function optimizeViaRoute(
+  stops: DraftStop[],
   travelMode: TravelMode,
   objective: Objective,
   mapProvider: MapProvider,
+  timezone: string,
 ): Promise<OptimizeResult> {
-  try {
-    const response = await requestJson<OptimizeRouteResponse>('/api/trip/optimize', {
-      trip: uiStopsToBackendTrip(stops, travelMode, objective, mapProvider),
-    });
+  const response = await requestJson<OptimizeRouteResponse>(
+    '/api/trip/optimize',
+    {
+      trip: stopsToDraftTrip(stops, travelMode, objective, mapProvider, timezone),
+    },
+    'optimize',
+  );
 
-    const converted = optimizedRouteToUi(response);
+  const converted = optimizedRouteToClientModel(response);
 
-    return {
-      ...converted,
-      source: 'api',
-      warning: response.conflicts?.[0] || response.explanations?.[0],
-    };
-  } catch {
-    return mockOptimize(stops, travelMode, objective, mapProvider);
-  }
+  return {
+    ...converted,
+    source: 'api',
+    warning: response.conflicts?.[0] || response.explanations?.[0],
+  };
 }
 
-export async function navigationViaRouteOrMock(
-  backendOptimizedTrip: BackendOptimizedTrip | null,
-  optimizedStops: Stop[],
-  mode: TravelMode,
-  mapProvider: MapProvider,
+export async function navigationViaRoute(
+  optimizedTrip: OptimizedTrip | null,
 ): Promise<NavigationResult> {
-  if (backendOptimizedTrip) {
-    try {
-      const response = await requestJson<NavigationLinksRouteResponse>(
-        '/api/trip/navigation-links',
-        { trip: backendOptimizedTrip },
-      );
-
-      return {
-        links: response.days
-          .filter((item) => item.navigationUrl)
-          .map((item) => ({
-            day: item.day,
-            url: item.navigationUrl as string,
-          })),
-        source: 'api',
-      };
-    } catch {
-      // ignore and fallback
-    }
+  if (!optimizedTrip) {
+    throw new TripClientError(
+      'navigation',
+      'Live navigation requires a live optimized trip. Re-run optimization in live mode first.',
+    );
   }
 
-  return mockNavigation(optimizedStops, mode, mapProvider);
+  const response = await requestJson<NavigationLinksRouteResponse>(
+    '/api/trip/navigation-links',
+    { trip: optimizedTrip },
+    'navigation',
+  );
+
+  return {
+    links: response.days
+      .filter((item) => item.navigationUrl)
+      .map((item) => ({
+        day: item.day,
+        url: item.navigationUrl as string,
+      })),
+    source: 'api',
+  };
 }

@@ -284,6 +284,10 @@ class CLIAdapter:
             if verbose:
                 cmd.append("--verbose")
             cmd.append(prompt)
+        elif self.platform == "cursor":
+            raise ValueError(
+                "Cursor IDE does not support CLI agent execution. Use Claude, OpenCode, iFlow, Codex, or another supported CLI platform."
+            )
         elif self.platform == "codex":
             cmd = ["codex", "exec"]
             cmd.append(prompt)

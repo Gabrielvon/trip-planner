@@ -765,8 +765,11 @@ def cmd_archive(args: argparse.Namespace) -> int:
 
     # Clear if current task
     current = get_current_task(repo_root)
-    if current and dir_name in current:
-        clear_current_task(repo_root)
+    if current:
+        current_path = Path(current).as_posix().rstrip("/")
+        expected_current = f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}"
+        if current_path == expected_current or Path(current_path).name == dir_name:
+            clear_current_task(repo_root)
 
     # Archive
     result = archive_task_complete(task_dir, repo_root)

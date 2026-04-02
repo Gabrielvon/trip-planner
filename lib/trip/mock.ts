@@ -1,8 +1,8 @@
 import {
+  DraftStop,
   MapProvider,
   Objective,
   ScheduleResult,
-  Stop,
   TravelMode,
 } from './types';
 
@@ -16,104 +16,103 @@ export type SamplePreset = {
 export const SAMPLE_PRESETS: SamplePreset[] = [
   {
     id: 'shanghai-amap',
-    label: '上海及周边（高德）',
+    label: 'Shanghai multi-day draft (AMap)',
     provider: 'amap',
-    text: `请帮我安排一个五天行程（上海及周边）：
-D1 2026-05-01 上午从上海虹桥站出发，先去外滩游览 60 分钟；步行到南京路步行街逛街 60 分钟；中午在城隍庙附近吃午饭 75 分钟；下午参观豫园 60 分钟；晚上回新天地酒店。
-D2 2026-05-02 上午从新天地酒店出发，参观上海博物馆 90 分钟；下午去陆家嘴东方明珠塔 90 分钟；参观上海中心大厦观光层 60 分钟；傍晚去田子坊逛逛 60 分钟；晚上回新天地酒店。
-D3 2026-05-03 早上从新天地酒店出发乘高铁去苏州，参观拙政园 90 分钟；隔壁苏州博物馆 60 分钟；中午在平江路吃饭 75 分钟；下午游览寒山寺 60 分钟；傍晚高铁返回新天地酒店。
-D4 2026-05-04 早上从新天地酒店出发驱车去朱家角古镇，游览水乡 120 分钟；古镇内午餐 60 分钟；游览课植园 60 分钟；下午返回新天地酒店。
-D5 2026-05-05 早上从新天地酒店出发乘高铁去杭州，游览西湖断桥 60 分钟；参观雷峰塔 60 分钟；在河坊街午餐 75 分钟；下午拜访灵隐寺 90 分钟；傍晚返回上海浦东机场结束行程。`,
+    text: `Compile a 5-day Shanghai itinerary with AMap.
+Day 1 starts at Hongqiao Railway Station, then The Bund, Yu Garden, Nanjing Road, Xintiandi, and ends near People's Square.
+Day 2 starts near People's Square, then Shanghai Museum, Jing'an Temple, Wukang Road, and ends near the hotel.
+Day 3 is a Suzhou side trip with classic gardens and a return to Shanghai at night.
+Day 4 is a Zhujiajiao water town day trip with a return to Shanghai.
+Day 5 covers Hangzhou highlights and ends at Pudong Airport.`,
   },
   {
     id: 'shenzhen-amap',
-    label: '深圳城市一日（高德）',
+    label: 'Shenzhen day trip draft (AMap)',
     provider: 'amap',
-    text: `请帮我安排一个深圳一日行程：
-D1 2026-06-01 上午从深圳北站出发，先到莲花山公园停留 60 分钟；再去市民中心参观 60 分钟；中午在福田中心区吃饭 75 分钟；下午到华强北逛街 90 分钟；傍晚去深圳湾公园散步 60 分钟；晚上回福田酒店。`,
+    text: `Compile a 1-day Shenzhen itinerary with AMap.
+Day 1 starts at Shenzhen North Station, then Splendid China Folk Village, OCT Harbour, Shenzhen Bay Park, Nantou Ancient Town, and ends at Shenzhen Bao'an Airport.`,
   },
   {
     id: 'beijing-amap',
-    label: '北京经典一日（高德）',
+    label: 'Beijing day trip draft (AMap)',
     provider: 'amap',
-    text: `请帮我安排一个北京一日行程：
-D1 2026-06-08 上午从北京南站出发，先去天安门广场停留 45 分钟；再游览故宫 120 分钟；中午在王府井附近吃饭 75 分钟；下午去景山公园 60 分钟；傍晚返回东直门酒店。`,
+    text: `Compile a 1-day Beijing itinerary with AMap.
+Day 1 starts at Beijing South Railway Station, then Tiananmen Square, the Forbidden City, Jingshan Park, Wangfujing, and ends near the Lama Temple.`,
   },
   {
     id: 'japan-google',
-    label: '东京一日（Google Maps）',
+    label: 'Tokyo day trip draft (Google Maps)',
     provider: 'google',
-    text: `Please plan a one-day Tokyo itinerary:
+    text: `Compile a 1-day Tokyo itinerary with Google Maps.
 Day 1 starts at Tokyo Station, then Senso-ji, Ueno Park, Tokyo Skytree, Shibuya Crossing, and ends at Shinjuku hotel in the evening.`,
   },
   {
     id: 'newyork-google',
-    label: '纽约一日（Google Maps）',
+    label: 'New York day trip draft (Google Maps)',
     provider: 'google',
-    text: `Please plan a one-day New York itinerary:
+    text: `Compile a 1-day New York itinerary with Google Maps.
 Day 1 starts at Penn Station, then Times Square, Central Park South, The Met, Brooklyn Bridge Park, and ends at JFK Airport in the evening.`,
   },
 ];
 
 export const SAMPLE_TEXT = SAMPLE_PRESETS[0].text;
 
-const SHANGHAI_SEED_STOPS: Stop[] = [
-  // Day 1: 上海外滩 & 南京路 (2026-05-01)
-  { id: 'd1-1', day: 1, date: '2026-05-01', title: '虹桥站出发', location: '上海虹桥火车站', lat: 31.1945, lng: 121.3209, durationMin: 10, earliest: '09:00', fixedOrder: true },
-  { id: 'd1-2', day: 1, date: '2026-05-01', title: '外滩', location: '外滩', lat: 31.2394, lng: 121.4904, durationMin: 60 },
-  { id: 'd1-3', day: 1, date: '2026-05-01', title: '南京路步行街', location: '南京路步行街', lat: 31.2348, lng: 121.4817, durationMin: 60 },
-  { id: 'd1-4', day: 1, date: '2026-05-01', title: '城隍庙午餐', location: '城隍庙', lat: 31.2268, lng: 121.4932, durationMin: 75, latest: '13:00' },
-  { id: 'd1-5', day: 1, date: '2026-05-01', title: '豫园', location: '豫园', lat: 31.2277, lng: 121.4921, durationMin: 60 },
-  { id: 'd1-6', day: 1, date: '2026-05-01', title: '返回新天地酒店', location: '新天地', lat: 31.2199, lng: 121.4736, durationMin: 10, fixedOrder: true },
-  // Day 2: 浦东 & 陆家嘴 (2026-05-02)
-  { id: 'd2-1', day: 2, date: '2026-05-02', title: '新天地酒店出发', location: '新天地', lat: 31.2199, lng: 121.4736, durationMin: 10, earliest: '09:00', fixedOrder: true },
-  { id: 'd2-2', day: 2, date: '2026-05-02', title: '上海博物馆', location: '上海博物馆', lat: 31.2298, lng: 121.4742, durationMin: 90 },
-  { id: 'd2-3', day: 2, date: '2026-05-02', title: '东方明珠塔', location: '东方明珠塔', lat: 31.2396, lng: 121.4997, durationMin: 90 },
-  { id: 'd2-4', day: 2, date: '2026-05-02', title: '上海中心大厦', location: '上海中心大厦', lat: 31.2357, lng: 121.5025, durationMin: 60 },
-  { id: 'd2-5', day: 2, date: '2026-05-02', title: '田子坊', location: '田子坊', lat: 31.2140, lng: 121.4642, durationMin: 60 },
-  { id: 'd2-6', day: 2, date: '2026-05-02', title: '回新天地酒店', location: '新天地', lat: 31.2199, lng: 121.4736, durationMin: 10, fixedOrder: true },
-  // Day 3: 苏州一日游 (2026-05-03)
-  { id: 'd3-1', day: 3, date: '2026-05-03', title: '酒店出发去苏州', location: '新天地', lat: 31.2199, lng: 121.4736, durationMin: 10, earliest: '08:30', fixedOrder: true },
-  { id: 'd3-2', day: 3, date: '2026-05-03', title: '拙政园', location: '苏州拙政园', lat: 31.3277, lng: 120.6296, durationMin: 90 },
-  { id: 'd3-3', day: 3, date: '2026-05-03', title: '苏州博物馆', location: '苏州博物馆', lat: 31.3268, lng: 120.6285, durationMin: 60 },
-  { id: 'd3-4', day: 3, date: '2026-05-03', title: '平江路午餐', location: '平江路', lat: 31.3217, lng: 120.6333, durationMin: 75, latest: '13:30' },
-  { id: 'd3-5', day: 3, date: '2026-05-03', title: '寒山寺', location: '寒山寺 苏州', lat: 31.3055, lng: 120.5726, durationMin: 60 },
-  { id: 'd3-6', day: 3, date: '2026-05-03', title: '返回新天地酒店', location: '新天地', lat: 31.2199, lng: 121.4736, durationMin: 10, fixedOrder: true },
-  // Day 4: 朱家角古镇 (2026-05-04)
-  { id: 'd4-1', day: 4, date: '2026-05-04', title: '酒店出发去朱家角', location: '新天地', lat: 31.2199, lng: 121.4736, durationMin: 10, earliest: '08:30', fixedOrder: true },
-  { id: 'd4-2', day: 4, date: '2026-05-04', title: '朱家角古镇', location: '朱家角古镇', lat: 31.1131, lng: 121.0583, durationMin: 120 },
-  { id: 'd4-3', day: 4, date: '2026-05-04', title: '古镇午餐', location: '朱家角', lat: 31.1140, lng: 121.0598, durationMin: 60, latest: '13:00' },
-  { id: 'd4-4', day: 4, date: '2026-05-04', title: '课植园', location: '课植园 朱家角', lat: 31.1135, lng: 121.0575, durationMin: 60 },
-  { id: 'd4-5', day: 4, date: '2026-05-04', title: '返回新天地酒店', location: '新天地', lat: 31.2199, lng: 121.4736, durationMin: 10, fixedOrder: true },
-  // Day 5: 杭州一日游 (2026-05-05)
-  { id: 'd5-1', day: 5, date: '2026-05-05', title: '酒店出发去杭州', location: '新天地', lat: 31.2199, lng: 121.4736, durationMin: 10, earliest: '08:00', fixedOrder: true },
-  { id: 'd5-2', day: 5, date: '2026-05-05', title: '西湖断桥', location: '西湖断桥 杭州', lat: 30.2592, lng: 120.1548, durationMin: 60 },
-  { id: 'd5-3', day: 5, date: '2026-05-05', title: '雷峰塔', location: '雷峰塔', lat: 30.2364, lng: 120.1488, durationMin: 60 },
-  { id: 'd5-4', day: 5, date: '2026-05-05', title: '河坊街午餐', location: '河坊街 杭州', lat: 30.2436, lng: 120.1559, durationMin: 75, latest: '13:30' },
-  { id: 'd5-5', day: 5, date: '2026-05-05', title: '灵隐寺', location: '灵隐寺', lat: 30.2387, lng: 120.1012, durationMin: 90 },
-  { id: 'd5-6', day: 5, date: '2026-05-05', title: '浦东机场返程', location: '上海浦东国际机场', lat: 31.1525, lng: 121.8093, durationMin: 10, fixedOrder: true },
+const SHANGHAI_SEED_STOPS: DraftStop[] = [
+  { id: 'd1-1', day: 1, date: '2026-05-01', title: 'Hongqiao Railway Station', location: 'Shanghai Hongqiao Railway Station', lat: 31.1945, lng: 121.3209, durationMin: 10, earliest: '09:00', fixedOrder: true },
+  { id: 'd1-2', day: 1, date: '2026-05-01', title: 'The Bund', location: 'The Bund, Shanghai', lat: 31.2394, lng: 121.4904, durationMin: 60 },
+  { id: 'd1-3', day: 1, date: '2026-05-01', title: 'Yu Garden', location: 'Yu Garden, Shanghai', lat: 31.2274, lng: 121.4921, durationMin: 60 },
+  { id: 'd1-4', day: 1, date: '2026-05-01', title: 'Nanjing Road Lunch', location: 'Nanjing Road, Shanghai', lat: 31.2348, lng: 121.4817, durationMin: 75, latest: '13:00' },
+  { id: 'd1-5', day: 1, date: '2026-05-01', title: 'Xintiandi', location: 'Xintiandi, Shanghai', lat: 31.2199, lng: 121.4736, durationMin: 60 },
+  { id: 'd1-6', day: 1, date: '2026-05-01', title: "People's Square Hotel", location: "People's Square, Shanghai", lat: 31.2304, lng: 121.4737, durationMin: 10, fixedOrder: true },
+
+  { id: 'd2-1', day: 2, date: '2026-05-02', title: "People's Square Hotel", location: "People's Square, Shanghai", lat: 31.2304, lng: 121.4737, durationMin: 10, earliest: '09:00', fixedOrder: true },
+  { id: 'd2-2', day: 2, date: '2026-05-02', title: 'Shanghai Museum', location: 'Shanghai Museum', lat: 31.2305, lng: 121.4737, durationMin: 90 },
+  { id: 'd2-3', day: 2, date: '2026-05-02', title: "Jing'an Temple", location: "Jing'an Temple, Shanghai", lat: 31.2237, lng: 121.4451, durationMin: 60 },
+  { id: 'd2-4', day: 2, date: '2026-05-02', title: 'Wukang Road', location: 'Wukang Road, Shanghai', lat: 31.211, lng: 121.4374, durationMin: 90 },
+  { id: 'd2-5', day: 2, date: '2026-05-02', title: 'French Concession Coffee Stop', location: 'Former French Concession, Shanghai', lat: 31.2093, lng: 121.4537, durationMin: 60 },
+  { id: 'd2-6', day: 2, date: '2026-05-02', title: 'Hotel Return', location: "People's Square, Shanghai", lat: 31.2304, lng: 121.4737, durationMin: 10, fixedOrder: true },
+
+  { id: 'd3-1', day: 3, date: '2026-05-03', title: 'Shanghai Railway Hub', location: 'Shanghai Railway Station', lat: 31.2492, lng: 121.4557, durationMin: 10, earliest: '08:30', fixedOrder: true },
+  { id: 'd3-2', day: 3, date: '2026-05-03', title: 'Humble Administrator Garden', location: 'Suzhou Humble Administrator Garden', lat: 31.3277, lng: 120.6296, durationMin: 90 },
+  { id: 'd3-3', day: 3, date: '2026-05-03', title: 'Lion Grove Garden', location: 'Lion Grove Garden, Suzhou', lat: 31.3268, lng: 120.6285, durationMin: 60 },
+  { id: 'd3-4', day: 3, date: '2026-05-03', title: 'Pingjiang Road Lunch', location: 'Pingjiang Road, Suzhou', lat: 31.3217, lng: 120.6333, durationMin: 75, latest: '13:30' },
+  { id: 'd3-5', day: 3, date: '2026-05-03', title: 'Shantang Street', location: 'Shantang Street, Suzhou', lat: 31.3055, lng: 120.5726, durationMin: 60 },
+  { id: 'd3-6', day: 3, date: '2026-05-03', title: 'Shanghai Hotel Return', location: "People's Square, Shanghai", lat: 31.2304, lng: 121.4737, durationMin: 10, fixedOrder: true },
+
+  { id: 'd4-1', day: 4, date: '2026-05-04', title: 'Shanghai Hotel Start', location: "People's Square, Shanghai", lat: 31.2304, lng: 121.4737, durationMin: 10, earliest: '08:30', fixedOrder: true },
+  { id: 'd4-2', day: 4, date: '2026-05-04', title: 'Zhujiajiao Ancient Town', location: 'Zhujiajiao Ancient Town', lat: 31.1131, lng: 121.0583, durationMin: 120 },
+  { id: 'd4-3', day: 4, date: '2026-05-04', title: 'Canal Lunch', location: 'Zhujiajiao Old Street', lat: 31.114, lng: 121.0598, durationMin: 60, latest: '13:00' },
+  { id: 'd4-4', day: 4, date: '2026-05-04', title: 'Boat Ride', location: 'Zhujiajiao Water Canal', lat: 31.1135, lng: 121.0575, durationMin: 60 },
+  { id: 'd4-5', day: 4, date: '2026-05-04', title: 'Shanghai Hotel Return', location: "People's Square, Shanghai", lat: 31.2304, lng: 121.4737, durationMin: 10, fixedOrder: true },
+
+  { id: 'd5-1', day: 5, date: '2026-05-05', title: 'Shanghai Hotel Checkout', location: "People's Square, Shanghai", lat: 31.2304, lng: 121.4737, durationMin: 10, earliest: '08:00', fixedOrder: true },
+  { id: 'd5-2', day: 5, date: '2026-05-05', title: 'West Lake', location: 'West Lake, Hangzhou', lat: 30.2592, lng: 120.1548, durationMin: 60 },
+  { id: 'd5-3', day: 5, date: '2026-05-05', title: 'Lingyin Temple', location: 'Lingyin Temple, Hangzhou', lat: 30.2429, lng: 120.1018, durationMin: 60 },
+  { id: 'd5-4', day: 5, date: '2026-05-05', title: 'Longjing Village Lunch', location: 'Longjing Village, Hangzhou', lat: 30.2148, lng: 120.1043, durationMin: 75, latest: '13:30' },
+  { id: 'd5-5', day: 5, date: '2026-05-05', title: 'Qinghefang Street', location: 'Qinghefang Street, Hangzhou', lat: 30.2415, lng: 120.1689, durationMin: 90 },
+  { id: 'd5-6', day: 5, date: '2026-05-05', title: 'Pudong Airport', location: 'Shanghai Pudong International Airport', lat: 31.1522, lng: 121.8053, durationMin: 10, fixedOrder: true },
 ];
 
-const SHENZHEN_SEED_STOPS: Stop[] = [
-  { id: 'sz-1', day: 1, date: '2026-06-01', title: '深圳北站出发', location: '深圳北站', lat: 22.6087, lng: 114.0294, durationMin: 10, earliest: '09:00', fixedOrder: true },
-  { id: 'sz-2', day: 1, date: '2026-06-01', title: '莲花山公园', location: '莲花山公园', lat: 22.5523, lng: 114.0542, durationMin: 60 },
-  { id: 'sz-3', day: 1, date: '2026-06-01', title: '市民中心', location: '深圳市民中心', lat: 22.5431, lng: 114.0579, durationMin: 60 },
-  { id: 'sz-4', day: 1, date: '2026-06-01', title: '福田午餐', location: '福田中心区', lat: 22.5416, lng: 114.0678, durationMin: 75, latest: '13:30' },
-  { id: 'sz-5', day: 1, date: '2026-06-01', title: '华强北', location: '华强北', lat: 22.5464, lng: 114.0868, durationMin: 90 },
-  { id: 'sz-6', day: 1, date: '2026-06-01', title: '深圳湾公园', location: '深圳湾公园', lat: 22.5106, lng: 113.9422, durationMin: 60 },
-  { id: 'sz-7', day: 1, date: '2026-06-01', title: '返回福田酒店', location: '福田酒店', lat: 22.5401, lng: 114.0646, durationMin: 10, fixedOrder: true },
+const SHENZHEN_SEED_STOPS: DraftStop[] = [
+  { id: 'sz-1', day: 1, date: '2026-06-01', title: 'Shenzhen North Station', location: 'Shenzhen North Station', lat: 22.6087, lng: 114.0294, durationMin: 10, earliest: '09:00', fixedOrder: true },
+  { id: 'sz-2', day: 1, date: '2026-06-01', title: 'Splendid China Folk Village', location: 'Splendid China Folk Village', lat: 22.5423, lng: 113.9734, durationMin: 60 },
+  { id: 'sz-3', day: 1, date: '2026-06-01', title: 'OCT Harbour', location: 'OCT Harbour, Shenzhen', lat: 22.5347, lng: 113.9831, durationMin: 60 },
+  { id: 'sz-4', day: 1, date: '2026-06-01', title: 'Shenzhen Bay Park', location: 'Shenzhen Bay Park', lat: 22.5145, lng: 113.9469, durationMin: 75, latest: '13:30' },
+  { id: 'sz-5', day: 1, date: '2026-06-01', title: 'Nantou Ancient Town', location: 'Nantou Ancient Town, Shenzhen', lat: 22.5338, lng: 113.9304, durationMin: 90 },
+  { id: 'sz-6', day: 1, date: '2026-06-01', title: "Window of the World", location: "Window of the World, Shenzhen", lat: 22.5401, lng: 113.9737, durationMin: 60 },
+  { id: 'sz-7', day: 1, date: '2026-06-01', title: "Bao'an Airport", location: "Shenzhen Bao'an International Airport", lat: 22.6393, lng: 113.8107, durationMin: 10, fixedOrder: true },
 ];
 
-const BEIJING_SEED_STOPS: Stop[] = [
-  { id: 'bj-1', day: 1, date: '2026-06-08', title: '北京南站出发', location: '北京南站', lat: 39.8652, lng: 116.3786, durationMin: 10, earliest: '08:30', fixedOrder: true },
-  { id: 'bj-2', day: 1, date: '2026-06-08', title: '天安门广场', location: '天安门广场', lat: 39.9087, lng: 116.3975, durationMin: 45 },
-  { id: 'bj-3', day: 1, date: '2026-06-08', title: '故宫', location: '故宫博物院', lat: 39.9163, lng: 116.3972, durationMin: 120 },
-  { id: 'bj-4', day: 1, date: '2026-06-08', title: '王府井午餐', location: '王府井', lat: 39.9149, lng: 116.4119, durationMin: 75, latest: '13:30' },
-  { id: 'bj-5', day: 1, date: '2026-06-08', title: '景山公园', location: '景山公园', lat: 39.924, lng: 116.3964, durationMin: 60 },
-  { id: 'bj-6', day: 1, date: '2026-06-08', title: '返回东直门酒店', location: '东直门', lat: 39.941, lng: 116.4335, durationMin: 10, fixedOrder: true },
+const BEIJING_SEED_STOPS: DraftStop[] = [
+  { id: 'bj-1', day: 1, date: '2026-06-08', title: 'Beijing South Station', location: 'Beijing South Railway Station', lat: 39.8652, lng: 116.3786, durationMin: 10, earliest: '08:30', fixedOrder: true },
+  { id: 'bj-2', day: 1, date: '2026-06-08', title: 'Tiananmen Square', location: 'Tiananmen Square', lat: 39.903, lng: 116.3975, durationMin: 45 },
+  { id: 'bj-3', day: 1, date: '2026-06-08', title: 'Forbidden City', location: 'Forbidden City, Beijing', lat: 39.9163, lng: 116.3972, durationMin: 120 },
+  { id: 'bj-4', day: 1, date: '2026-06-08', title: 'Jingshan Park', location: 'Jingshan Park, Beijing', lat: 39.923, lng: 116.3961, durationMin: 75, latest: '13:30' },
+  { id: 'bj-5', day: 1, date: '2026-06-08', title: 'Wangfujing', location: 'Wangfujing, Beijing', lat: 39.9155, lng: 116.4111, durationMin: 60 },
+  { id: 'bj-6', day: 1, date: '2026-06-08', title: 'Lama Temple End', location: 'Lama Temple, Beijing', lat: 39.947, lng: 116.417, durationMin: 10, fixedOrder: true },
 ];
 
-const TOKYO_SEED_STOPS: Stop[] = [
+const TOKYO_SEED_STOPS: DraftStop[] = [
   { id: 'jp-1', day: 1, date: '2026-06-15', title: 'Tokyo Station Start', location: 'Tokyo Station', lat: 35.6812, lng: 139.7671, durationMin: 10, earliest: '09:00', fixedOrder: true },
   { id: 'jp-2', day: 1, date: '2026-06-15', title: 'Senso-ji', location: 'Senso-ji', lat: 35.7148, lng: 139.7967, durationMin: 60 },
   { id: 'jp-3', day: 1, date: '2026-06-15', title: 'Ueno Park', location: 'Ueno Park', lat: 35.7142, lng: 139.7741, durationMin: 60 },
@@ -122,7 +121,7 @@ const TOKYO_SEED_STOPS: Stop[] = [
   { id: 'jp-6', day: 1, date: '2026-06-15', title: 'Shinjuku Hotel End', location: 'Shinjuku', lat: 35.6896, lng: 139.7006, durationMin: 10, fixedOrder: true },
 ];
 
-const NEWYORK_SEED_STOPS: Stop[] = [
+const NEWYORK_SEED_STOPS: DraftStop[] = [
   { id: 'ny-1', day: 1, date: '2026-06-22', title: 'Penn Station Start', location: 'Penn Station', lat: 40.7506, lng: -73.9935, durationMin: 10, earliest: '09:00', fixedOrder: true },
   { id: 'ny-2', day: 1, date: '2026-06-22', title: 'Times Square', location: 'Times Square', lat: 40.758, lng: -73.9855, durationMin: 45 },
   { id: 'ny-3', day: 1, date: '2026-06-22', title: 'Central Park South', location: 'Central Park South', lat: 40.7661, lng: -73.9776, durationMin: 60 },
@@ -131,7 +130,7 @@ const NEWYORK_SEED_STOPS: Stop[] = [
   { id: 'ny-6', day: 1, date: '2026-06-22', title: 'JFK End', location: 'JFK Airport', lat: 40.6413, lng: -73.7781, durationMin: 10, fixedOrder: true },
 ];
 
-export const SEED_STOPS: Stop[] = SHANGHAI_SEED_STOPS;
+export const SEED_STOPS: DraftStop[] = SHANGHAI_SEED_STOPS;
 
 function toMinutes(t?: string) {
   if (!t) return undefined;
@@ -145,7 +144,7 @@ function formatMin(total: number) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-function haversine(a: Stop, b: Stop) {
+function haversine(a: DraftStop, b: DraftStop) {
   const R = 6371;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
   const dLng = ((b.lng - a.lng) * Math.PI) / 180;
@@ -183,15 +182,15 @@ function providerFactor(provider: MapProvider) {
   }
 }
 
-export function groupByDay(stops: Stop[]) {
-  return stops.reduce<Record<number, Stop[]>>((acc, stop) => {
+export function groupByDay(stops: DraftStop[]) {
+  return stops.reduce<Record<number, DraftStop[]>>((acc, stop) => {
     acc[stop.day] = acc[stop.day] || [];
     acc[stop.day].push(stop);
     return acc;
   }, {});
 }
 
-function sortDaysByDateThenDay(days: Record<number, Stop[]>) {
+function sortDaysByDateThenDay(days: Record<number, DraftStop[]>) {
   const orderedDays = Object.keys(days).map(Number);
   return orderedDays.sort((a, b) => {
     const dateA = days[a].map((s) => s.date).find((d) => Boolean(d));
@@ -204,8 +203,8 @@ function sortDaysByDateThenDay(days: Record<number, Stop[]>) {
 }
 
 export function estimatedTravelMinutes(
-  a: Stop,
-  b: Stop,
+  a: DraftStop,
+  b: DraftStop,
   mode: TravelMode,
   provider: MapProvider,
 ) {
@@ -216,7 +215,7 @@ export function estimatedTravelMinutes(
 }
 
 function nearestNeighborForDay(
-  stops: Stop[],
+  stops: DraftStop[],
   mode: TravelMode,
   objective: Objective,
   provider: MapProvider,
@@ -226,7 +225,7 @@ function nearestNeighborForDay(
   const fixedStart = stops[0];
   const fixedEnd = stops[stops.length - 1];
   const middle = stops.slice(1, -1);
-  const ordered: Stop[] = [fixedStart];
+  const ordered: DraftStop[] = [fixedStart];
   let current = fixedStart;
   const remaining = [...middle];
 
@@ -257,7 +256,7 @@ function nearestNeighborForDay(
 }
 
 export function optimizeMultiDay(
-  stops: Stop[],
+  stops: DraftStop[],
   mode: TravelMode,
   objective: Objective,
   provider: MapProvider,
@@ -270,7 +269,7 @@ export function optimizeMultiDay(
 }
 
 function buildScheduleForDay(
-  stops: Stop[],
+  stops: DraftStop[],
   mode: TravelMode,
   provider: MapProvider,
 ) {
@@ -329,7 +328,7 @@ function buildScheduleForDay(
 }
 
 export function buildMultiDaySchedule(
-  stops: Stop[],
+  stops: DraftStop[],
   mode: TravelMode,
   provider: MapProvider,
 ): ScheduleResult {
@@ -347,14 +346,15 @@ export function buildMultiDaySchedule(
   };
 }
 
-export function parseTripTextMock(raw: string): Stop[] {
+export function parseTripTextMock(raw: string): DraftStop[] {
   const text = raw.trim();
   if (!text) return SHANGHAI_SEED_STOPS;
 
-  if (text.includes('深圳')) return SHENZHEN_SEED_STOPS;
-  if (text.includes('北京')) return BEIJING_SEED_STOPS;
-  if (/东京|日本|Tokyo|Japan/i.test(text)) return TOKYO_SEED_STOPS;
-  if (/纽约|纽约市|New\s*York|NYC/i.test(text)) return NEWYORK_SEED_STOPS;
+  if (/Shenzhen|深圳/i.test(text)) return SHENZHEN_SEED_STOPS;
+  if (/Beijing|北京/i.test(text)) return BEIJING_SEED_STOPS;
+  if (/Tokyo|Japan|东京|日本/i.test(text)) return TOKYO_SEED_STOPS;
+  if (/New\s*York|NYC|纽约/i.test(text)) return NEWYORK_SEED_STOPS;
+  if (/Shanghai|上海/i.test(text)) return SHANGHAI_SEED_STOPS;
   return SHANGHAI_SEED_STOPS;
 }
 
@@ -384,14 +384,13 @@ function mapGoogleMode(mode: TravelMode) {
   }
 }
 
-function buildAmapUrl(dayStops: Stop[], mode: TravelMode) {
+function buildAmapUrl(dayStops: DraftStop[], mode: TravelMode) {
   const from = dayStops[0];
   const to = dayStops[dayStops.length - 1];
   const mids = dayStops.slice(1, -1);
 
   let url = `https://uri.amap.com/navigation?from=${from.lng},${from.lat},${encodeURIComponent(from.location)}&to=${to.lng},${to.lat},${encodeURIComponent(to.location)}&mode=${mapAmapMode(mode)}&policy=1&coordinate=gaode&callnative=0`;
-  
-  // Use all intermediate coordinates for better AMap URI compatibility.
+
   if (mids.length > 0) {
     const waypointCoords = mids.map((s) => `${s.lng},${s.lat}`).join(';');
     url += `&waypoints=${encodeURIComponent(waypointCoords)}`;
@@ -399,7 +398,7 @@ function buildAmapUrl(dayStops: Stop[], mode: TravelMode) {
   return url;
 }
 
-function buildGoogleUrl(dayStops: Stop[], mode: TravelMode) {
+function buildGoogleUrl(dayStops: DraftStop[], mode: TravelMode) {
   const from = dayStops[0];
   const to = dayStops[dayStops.length - 1];
   const mids = dayStops.slice(1, -1);
@@ -413,7 +412,7 @@ function buildGoogleUrl(dayStops: Stop[], mode: TravelMode) {
 }
 
 export function buildMockNavigationLinks(
-  stops: Stop[],
+  stops: DraftStop[],
   mode: TravelMode,
   provider: MapProvider = 'amap',
 ) {
