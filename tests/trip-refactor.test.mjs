@@ -18,6 +18,8 @@ const {
   RouteContractError,
 } = loadTsModule('lib/trip/contracts.ts');
 
+const { parseTripTextToDraft } = loadTsModule('lib/trip/server.ts');
+
 const {
   initialTripFlowState,
   tripFlowReducer,
@@ -278,6 +280,13 @@ test('route contracts validate shape and apply parse defaults', () => {
   });
   assert.equal(navigationRequest.trip.optimizedDays.length, 0);
   assert.throws(() => readNavigationRequest({}), /trip is required/);
+});
+
+test('parseTripTextToDraft rejects blank input as a contract error', async () => {
+  await assert.rejects(
+    () => parseTripTextToDraft({ text: '   ', mapProvider: 'amap' }),
+    (error) => error instanceof RouteContractError && error.message === 'text is required',
+  );
 });
 
 test('trip-flow-state reducer handles start, slow, success, failure, and idle recovery', () => {

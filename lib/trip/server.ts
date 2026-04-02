@@ -11,6 +11,7 @@ import { buildMultiDaySchedule, optimizeMultiDay } from './mock';
 import { draftTripToStops, scheduleToOptimizedTrip } from './canonical-trip';
 import { parseTripWithOpenAI } from './parse-openai';
 import { resolveAllStops } from './amap-provider';
+import { RouteContractError } from './contracts';
 
 type ParseBody = {
   text?: string;
@@ -110,7 +111,7 @@ export async function parseTripTextToDraft(body: ParseBody): Promise<ParseRouteR
   const text = isNonEmptyString(body.text) ? body.text.trim() : '';
 
   if (!text) {
-    throw new Error('Trip text is required for live parse.');
+    throw new RouteContractError('text is required');
   }
 
   if (!process.env.OPENAI_API_KEY) {
