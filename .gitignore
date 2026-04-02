@@ -22,3 +22,25 @@ Thumbs.db
 # Local diagnostics
 build-check.log
 .npm-cache/
+
+# Local AI tool overlays
+.agents/
+.claude/
+.cursor/
+.gemini/
+.codex-review-diff.txt
+
+# GitHub AI/copilot local scaffolding
+.github/agents/
+.github/copilot-mcp-config.json
+.github/skills/
+
+# Trellis local runtime state
+.trellis/tasks/
+.trellis/workspace/
+.trellis/worktree.yaml
+.trellis/.template-hashes.json
+.trellis/.version
+
+# Local planning scratchpads
+CODEBASE_TASK_PROPOSALS.md
