@@ -13,7 +13,7 @@
  * here — keep GCJ-02 throughout so AMap navigation links remain accurate.
  */
 
-import { BackendResolvedPlace, MapProvider } from './types';
+import { MapProvider, ResolvedPlace, TripDay } from './types';
 
 const AMAP_BASE = 'https://restapi.amap.com/v3';
 
@@ -139,7 +139,7 @@ export async function searchPOI(
 }
 
 // ---------------------------------------------------------------------------
-// Resolve a raw location string to a BackendResolvedPlace.
+// Resolve a raw location string to a ResolvedPlace.
 // Tries geocode first, then POI search, then returns undefined.
 // ---------------------------------------------------------------------------
 
@@ -147,7 +147,7 @@ export async function resolveLocation(
   rawLocation: string,
   provider: MapProvider = 'amap',
   city?: string,
-): Promise<BackendResolvedPlace | undefined> {
+): Promise<ResolvedPlace | undefined> {
   if (!process.env.AMAP_API_KEY) return undefined;
 
   try {
@@ -190,12 +190,10 @@ export async function resolveLocation(
 // Returns a new copy of the days array with resolvedPlace filled in where possible.
 // ---------------------------------------------------------------------------
 
-import { BackendTripDay } from './types';
-
 export async function resolveAllStops(
-  days: BackendTripDay[],
+  days: TripDay[],
   provider: MapProvider = 'amap',
-): Promise<BackendTripDay[]> {
+): Promise<TripDay[]> {
   // Run all geocoding in parallel — AMap rate limit is generous.
   return Promise.all(
     days.map(async (day) => {

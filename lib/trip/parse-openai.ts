@@ -2,17 +2,17 @@
  * OpenAI Structured Outputs parser for multi-day trip text.
  *
  * Uses JSON schema mode (response_format: { type: 'json_schema' }) so the model
- * is constrained to return a valid BackendMultiDayTrip on every call.
+ * is constrained to return a valid TripDraft on every call.
  *
  * Only called from server.ts when OPENAI_API_KEY is present.
- * Falls back to the heuristic placeholder when the key is absent or the call fails.
+ * Throws when the key is absent or the call fails.
  */
 
 import OpenAI from 'openai';
-import { BackendMultiDayTrip, MapProvider } from './types';
+import { MapProvider, TripDraft } from './types';
 
 // ---------------------------------------------------------------------------
-// JSON Schema targeting BackendMultiDayTrip
+// JSON Schema targeting TripDraft
 // OpenAI Structured Outputs requires additionalProperties: false at every level.
 // ---------------------------------------------------------------------------
 
@@ -20,7 +20,7 @@ import { BackendMultiDayTrip, MapProvider } from './types';
 // Every key listed in `properties` MUST appear in `required`.
 // Optional fields must use a union with `null` (e.g. ["string","null"]) and be marked required.
 const TRIP_JSON_SCHEMA = {
-  name: 'BackendMultiDayTrip',
+  name: 'TripDraft',
   strict: true,
   schema: {
     type: 'object',
@@ -161,7 +161,7 @@ Rules:
 10. For hardConstraints, extract explicit time windows, fixed appointments, or logistical anchors (flights, trains).
 11. title should be a concise trip name derived from the input.
 12. timezone: infer from location names if possible (e.g. Tokyo → Asia/Tokyo, Beijing → Asia/Shanghai). Default to "Asia/Shanghai".
-13. All string fields that are unknown must be empty string "", never null or undefined.
+13. For fields whose schema allows null, use null when unknown. For required non-null string fields, use empty string "" when unknown.
 
 Return ONLY valid JSON matching the schema. No explanations.`;
 
@@ -173,7 +173,7 @@ export async function parseTripWithOpenAI(
   text: string,
   timezone: string,
   mapProvider: MapProvider,
-): Promise<{ trip: BackendMultiDayTrip; warnings: string[] }> {
+): Promise<{ trip: TripDraft; warnings: string[] }> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is not set');
@@ -204,7 +204,7 @@ export async function parseTripWithOpenAI(
   }
 
   // The model is schema-constrained, so parse is safe; still guard.
-  const parsed = JSON.parse(raw) as BackendMultiDayTrip & { warnings?: string[] };
+  const parsed = JSON.parse(raw) as TripDraft & { warnings?: string[] };
 
   // Pull warnings out of the trip object — they're in the schema for extraction
   // convenience but should be returned separately.
