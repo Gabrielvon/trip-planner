@@ -22,6 +22,7 @@ import {
 import {
   draftTripToStops,
   optimizedRouteToClientModel,
+  scheduleToOptimizedTrip,
   stopsToDraftTrip,
 } from './canonical-trip';
 
@@ -106,17 +107,26 @@ export async function optimizeViaDemo(
   travelMode: TravelMode,
   objective: Objective,
   mapProvider: MapProvider,
+  timezone = 'Asia/Shanghai',
 ): Promise<OptimizeResult> {
   await wait(600);
   const optimizedStops = optimizeMultiDay(stops, travelMode, objective, mapProvider);
   const schedule = buildMultiDaySchedule(optimizedStops, travelMode, mapProvider);
+  const sourceTrip = stopsToDraftTrip(
+    stops,
+    travelMode,
+    objective,
+    mapProvider,
+    timezone,
+  );
+  const optimizedTrip = scheduleToOptimizedTrip(sourceTrip, optimizedStops, schedule);
 
   return {
     optimizedStops,
     schedule,
     source: 'mock',
     warning: 'Demo mode: using the local optimizer instead of the live optimize API.',
-    optimizedTrip: null,
+    optimizedTrip,
   };
 }
 

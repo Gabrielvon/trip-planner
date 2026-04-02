@@ -12,6 +12,7 @@ const {
   optimizedRouteToClientModel,
   scheduleToOptimizedTrip,
 } = loadTsModule('lib/trip/canonical-trip.ts');
+const { optimizeViaDemo } = loadTsModule('lib/trip/parse-client.ts');
 
 const {
   readParseRequest,
@@ -522,6 +523,46 @@ test('trip-workspace-helpers hide stale optimization output when planning settin
   assert.deepEqual(
     getVisibleNavigationLinks(navigationLinks, optimization, mismatchedSettings),
     [],
+  );
+});
+
+test('optimizeViaDemo returns a compatible optimized trip so demo results stay visible', async () => {
+  const draftTrip = makeDraftTrip();
+  const draftStops = draftTripToStops(draftTrip);
+
+  const result = await optimizeViaDemo(
+    draftStops,
+    draftTrip.transportMode,
+    draftTrip.objective,
+    draftTrip.mapProvider,
+    draftTrip.timezone,
+  );
+
+  const matchingSettings = {
+    travelMode: draftTrip.transportMode,
+    objective: draftTrip.objective,
+    mapProvider: draftTrip.mapProvider,
+    timezone: 'Asia/Shanghai',
+  };
+
+  assert.ok(result.optimizedTrip);
+  assert.equal(isOptimizationCompatible(result.optimizedTrip, matchingSettings), true);
+  assert.equal(result.schedule.days.length > 0, true);
+  assert.equal(result.optimizedStops.length > 0, true);
+  assert.deepEqual(
+    getVisibleOptimizationState(
+      {
+        optimizedStops: result.optimizedStops,
+        schedule: result.schedule,
+        optimizedTrip: result.optimizedTrip,
+      },
+      matchingSettings,
+    ),
+    {
+      optimizedStops: result.optimizedStops,
+      schedule: result.schedule,
+      optimizedTrip: result.optimizedTrip,
+    },
   );
 });
 

@@ -16,6 +16,7 @@ const { default: TripReviewPanel } = loadTsModule(
   'components/trip/trip-review-panel.tsx',
 );
 const { EMPTY_SCHEDULE } = loadTsModule('lib/trip/trip-workspace-state.ts');
+const { useTripWorkspace } = loadTsModule('lib/trip/use-trip-workspace.ts');
 
 function installDom() {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
@@ -120,6 +121,10 @@ function findButton(container, label) {
   return Array.from(container.querySelectorAll('button')).find(
     (node) => node.textContent?.trim() === label,
   );
+}
+
+function findByTestId(container, value) {
+  return container.querySelector(`[data-testid="${value}"]`);
 }
 
 test('trip-runtime-status recovery CTA is clickable in the DOM', async () => {
@@ -349,6 +354,82 @@ test('trip-review-panel still renders empty states in the DOM', async () => {
     view.container.textContent,
     /No navigation links yet\. Generate them from the optimized trip\./,
   );
+
+  await view.cleanup();
+});
+
+test('useTripWorkspace keeps demo optimization visible after running the demo flow', async () => {
+  function WorkspaceHarness() {
+    const workspace = useTripWorkspace();
+
+    return React.createElement(
+      'div',
+      {},
+      React.createElement(
+        'button',
+        {
+          onClick: () => workspace.loadSamplePreset('text'),
+        },
+        'Load sample',
+      ),
+      React.createElement(
+        'button',
+        {
+          onClick: () => {
+            void workspace.handleParseDemo();
+          },
+        },
+        'Parse demo',
+      ),
+      React.createElement(
+        'button',
+        {
+          onClick: () => {
+            workspace.runOptimize();
+          },
+        },
+        'Run optimize',
+      ),
+      React.createElement(
+        'div',
+        { 'data-testid': 'optimized-stop-count' },
+        String(workspace.optimization.optimizedStops.length),
+      ),
+      React.createElement(
+        'div',
+        { 'data-testid': 'navigation-label' },
+        workspace.useDemoNavigation ? 'demo' : 'live',
+      ),
+      React.createElement(
+        'div',
+        { 'data-testid': 'last-action' },
+        workspace.flowState.lastAction,
+      ),
+    );
+  }
+
+  const view = await renderIntoDom(React.createElement(WorkspaceHarness));
+
+  await act(async () => {
+    click(findButton(view.container, 'Load sample'));
+  });
+
+  await act(async () => {
+    click(findButton(view.container, 'Parse demo'));
+    await new Promise((resolve) => setTimeout(resolve, 650));
+  });
+
+  await act(async () => {
+    click(findButton(view.container, 'Run optimize'));
+    await new Promise((resolve) => setTimeout(resolve, 750));
+  });
+
+  assert.equal(
+    Number(findByTestId(view.container, 'optimized-stop-count').textContent) > 0,
+    true,
+  );
+  assert.equal(findByTestId(view.container, 'navigation-label').textContent, 'demo');
+  assert.match(findByTestId(view.container, 'last-action').textContent, /Demo optimization completed\./);
 
   await view.cleanup();
 });

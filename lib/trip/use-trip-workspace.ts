@@ -277,13 +277,14 @@ export function useTripWorkspace() {
       travelMode,
       objective,
       mapProvider,
+      currentTimezone,
     );
 
     dispatchWorkspace({
       type: 'setOptimization',
       optimizedStops: result.optimizedStops,
       schedule: result.schedule,
-      optimizedTrip: null,
+      optimizedTrip: result.optimizedTrip ?? null,
     });
     dispatchFlow({
       type: 'succeed',
