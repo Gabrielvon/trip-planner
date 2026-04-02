@@ -37,6 +37,12 @@ export const EMPTY_SCHEDULE: ScheduleResult = {
   totalStay: 0,
 };
 
+export const EMPTY_OPTIMIZATION: OptimizationState = {
+  optimizedStops: [],
+  schedule: EMPTY_SCHEDULE,
+  optimizedTrip: null,
+};
+
 export const initialTripWorkspaceState: TripWorkspaceState = {
   draftStops: [],
   optimization: null,
@@ -111,11 +117,5 @@ export function tripWorkspaceReducer(
 }
 
 export function selectOptimization(state: TripWorkspaceState): OptimizationState {
-  return (
-    state.optimization ?? {
-      optimizedStops: [],
-      schedule: EMPTY_SCHEDULE,
-      optimizedTrip: null,
-    }
-  );
+  return state.optimization ?? EMPTY_OPTIMIZATION;
 }

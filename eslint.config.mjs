@@ -6,9 +6,11 @@ const config = [
   ...nextTypescript,
   {
     ignores: [
+      '.agents/**',
       '.github/**',
       '.next/**',
       '.test-dist/**',
+      '.trellis/**',
       'build/**',
       'next-env.d.ts',
       'out/**',
