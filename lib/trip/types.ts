@@ -1,26 +1,25 @@
 export type TravelMode = 'driving' | 'walking' | 'cycling' | 'transit';
 export type Objective = 'fastest' | 'shortest' | 'balanced';
 export type MapProvider = 'amap' | 'google' | 'mapbox';
-export type DataSource = 'api' | 'mock';
+export type DataSource = 'api' | 'mock' | 'manual';
 
-/** One row in the structured input form — converted directly to Stop[] without an LLM call. */
-export type StructuredStop = {
+export type StructuredDraftStop = {
   id: string;
   day: number;
-  date?: string;           // YYYY-MM-DD
+  date?: string;
   title: string;
   location: string;
-  earliestStart?: string;   // HH:MM
+  earliestStart?: string;
   durationMin: number;
   category: 'meeting' | 'meal' | 'sightseeing' | 'hotel' | 'transport' | 'custom';
   fixedOrder?: boolean;
   notes?: string;
 };
 
-export type Stop = {
+export type DraftStop = {
   id: string;
   day: number;
-  date?: string; // YYYY-MM-DD
+  date?: string;
   title: string;
   location: string;
   lat: number;
@@ -38,7 +37,7 @@ export type RouteLeg = {
   minutes: number;
 };
 
-export type TimelineStop = Stop & {
+export type TimelineStop = DraftStop & {
   arrival: string;
   departure: string;
   travelFromPrev: number;
@@ -58,7 +57,7 @@ export type ScheduleResult = {
   totalStay: number;
 };
 
-export type BackendResolvedPlace = {
+export type ResolvedPlace = {
   provider: MapProvider;
   placeId?: string;
   name: string;
@@ -69,11 +68,11 @@ export type BackendResolvedPlace = {
   lng: number;
 };
 
-export type BackendTaskStop = {
+export type TripTaskStop = {
   id: string;
   title: string;
   rawLocation: string;
-  resolvedPlace?: BackendResolvedPlace;
+  resolvedPlace?: ResolvedPlace;
   durationMin: number;
   earliestStart?: string;
   latestArrival?: string;
@@ -83,25 +82,22 @@ export type BackendTaskStop = {
   notes?: string;
 };
 
-export type BackendTripDay = {
-  day: number;
-  date?: string;
-  start?: {
-    name: string;
-    rawLocation?: string;
-    resolvedPlace?: BackendResolvedPlace;
-    time?: string;
-  };
-  end?: {
-    name: string;
-    rawLocation?: string;
-    resolvedPlace?: BackendResolvedPlace;
-    time?: string;
-  };
-  stops: BackendTaskStop[];
+export type TripAnchor = {
+  name: string;
+  rawLocation?: string;
+  resolvedPlace?: ResolvedPlace;
+  time?: string;
 };
 
-export type BackendMultiDayTrip = {
+export type TripDay = {
+  day: number;
+  date?: string;
+  start?: TripAnchor;
+  end?: TripAnchor;
+  stops: TripTaskStop[];
+};
+
+export type TripDraft = {
   tripId?: string;
   title?: string;
   timezone: string;
@@ -109,24 +105,24 @@ export type BackendMultiDayTrip = {
   transportMode: TravelMode;
   objective: Objective;
   preferences?: Record<string, unknown>;
-  days: BackendTripDay[];
+  days: TripDay[];
   hardConstraints: Array<Record<string, unknown>>;
   source?: Record<string, boolean>;
 };
 
-export type BackendOptimizedDay = {
+export type OptimizedTaskStop = TripTaskStop & {
+  day: number;
+  arrival: string;
+  departure: string;
+  travelFromPrevMin: number;
+};
+
+export type OptimizedDay = {
   day: number;
   totalMinutes: number;
   totalTravelMinutes: number;
   totalStopMinutes: number;
-  orderedStops: Array<
-    BackendTaskStop & {
-      day: number;
-      arrival: string;
-      departure: string;
-      travelFromPrevMin: number;
-    }
-  >;
+  orderedStops: OptimizedTaskStop[];
   legs: Array<{
     day: number;
     from: string;
@@ -135,8 +131,8 @@ export type BackendOptimizedDay = {
   }>;
 };
 
-export type BackendOptimizedTrip = BackendMultiDayTrip & {
-  optimizedDays: BackendOptimizedDay[];
+export type OptimizedTrip = TripDraft & {
+  optimizedDays: OptimizedDay[];
   summary: {
     totalDays: number;
     totalMinutes: number;
@@ -145,36 +141,38 @@ export type BackendOptimizedTrip = BackendMultiDayTrip & {
   };
 };
 
-export type ParseRouteResponse = {
-  trip: BackendMultiDayTrip;
-  warnings: string[];
-};
-
-export type OptimizeRouteResponse = {
-  optimizedTrip: BackendOptimizedTrip;
-  explanations: string[];
-  conflicts: string[];
-};
-
-export type NavigationLinksRouteResponse = {
+export type NavigationPlan = {
   days: Array<{
     day: number;
     navigationUrl?: string;
   }>;
 };
 
+export type ParseRouteResponse = {
+  trip: TripDraft;
+  warnings: string[];
+};
+
+export type OptimizeRouteResponse = {
+  optimizedTrip: OptimizedTrip;
+  explanations: string[];
+  conflicts: string[];
+};
+
+export type NavigationLinksRouteResponse = NavigationPlan;
+
 export type ParseResult = {
-  stops: Stop[];
+  stops: DraftStop[];
   source: DataSource;
   warning?: string;
 };
 
 export type OptimizeResult = {
-  optimizedStops: Stop[];
+  optimizedStops: DraftStop[];
   schedule: ScheduleResult;
   source: DataSource;
   warning?: string;
-  backendOptimizedTrip?: BackendOptimizedTrip | null;
+  optimizedTrip?: OptimizedTrip | null;
 };
 
 export type NavigationResult = {

@@ -11,7 +11,10 @@ function expectOk(result) {
 }
 
 test('parseCSV skips header row and parses basic csv', () => {
-  const text = ['day,title,location,time,duration,category,notes', '1,Senso-ji,Asakusa,09:00,90,sightseeing,'].join('\n');
+  const text = [
+    'day,title,location,time,duration,category,notes',
+    '1,Senso-ji,Asakusa,09:00,90,sightseeing,',
+  ].join('\n');
 
   const stops = parseCSV(text);
   assert.equal(stops.length, 1);
@@ -21,7 +24,10 @@ test('parseCSV skips header row and parses basic csv', () => {
 });
 
 test('parseFileText parses tsv-delimited rows', () => {
-  const text = ['day\ttitle\tlocation\ttime\tduration\tcategory\tnotes', '2\tUeno Park\tTokyo\t10:30\t60\tsightseeing\t'].join('\n');
+  const text = [
+    'day\ttitle\tlocation\ttime\tduration\tcategory\tnotes',
+    '2\tUeno Park\tTokyo\t10:30\t60\tsightseeing\t',
+  ].join('\n');
 
   const result = expectOk(parseFileText('stops.tsv', text));
   assert.equal(result.format, 'TSV (.tsv)');

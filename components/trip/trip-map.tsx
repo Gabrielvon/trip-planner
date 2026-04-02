@@ -2,40 +2,38 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadAmapJs } from '@/lib/trip/amap-js';
-import { Stop } from '@/lib/trip/types';
+import { DraftStop } from '@/lib/trip/types';
 
 type TripMapProps = {
-  stops: Stop[];
+  stops: DraftStop[];
   mapProvider: 'amap' | 'google' | 'mapbox';
   selectedStopId?: string;
   onStopSelect?: (id: string) => void;
 };
 
 const DAY_COLORS = [
-  '#0f172a', // day 1 — slate
-  '#2563eb', // day 2 — blue
-  '#16a34a', // day 3 — green
-  '#dc2626', // day 4 — red
-  '#d97706', // day 5 — amber
-  '#7c3aed', // day 6 — violet
-  '#0891b2', // day 7 — cyan
+  '#0f172a',
+  '#2563eb',
+  '#16a34a',
+  '#dc2626',
+  '#d97706',
+  '#7c3aed',
+  '#0891b2',
 ];
 
 function dayColor(day: number) {
   return DAY_COLORS[(day - 1) % DAY_COLORS.length];
 }
 
-function hasRenderableStops(stops: Stop[]) {
-  return stops.some((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+function hasRenderableStops(stops: DraftStop[]) {
+  return stops.some((stop) => Number.isFinite(stop.lat) && Number.isFinite(stop.lng));
 }
 
 function hasWebGLSupport() {
   if (typeof document === 'undefined') return false;
   try {
     const canvas = document.createElement('canvas');
-    return Boolean(
-      canvas.getContext('webgl') || canvas.getContext('experimental-webgl'),
-    );
+    return Boolean(canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
   } catch {
     return false;
   }
@@ -52,14 +50,13 @@ function buildLabelContent(idx: number, color: string, active: boolean) {
 
 function applyMarkerActiveState(meta: MarkerMeta, active: boolean, AMap: any) {
   const { marker, color, idx } = meta;
-  // Update label content to reflect active/inactive state (AMap v2 compatible).
   try {
     marker.setLabel({
       content: buildLabelContent(idx, color, active),
       offset: new AMap.Pixel(0, -20),
     });
   } catch {
-    // AMap may not support setLabel — silently ignore.
+    // Ignore label updates when the SDK does not support them.
   }
 }
 
@@ -74,15 +71,18 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
 
   const routePoints = useMemo(() => {
     return stops
-      .filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng))
-      .map((s) => ({
-        id: s.id,
-        title: s.title,
-        lng: s.lng,
-        lat: s.lat,
-        day: s.day,
+      .filter((stop) => Number.isFinite(stop.lat) && Number.isFinite(stop.lng))
+      .map((stop) => ({
+        id: stop.id,
+        title: stop.title,
+        lng: stop.lng,
+        lat: stop.lat,
+        day: stop.day,
       }));
   }, [stops]);
+
+  const renderableCount = routePoints.length;
+  const unresolvedCount = Math.max(stops.length - renderableCount, 0);
 
   const googleEmbedUrl = useMemo(() => {
     if (routePoints.length === 0) return '';
@@ -94,12 +94,16 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
     function handleSdkRuntimeError(event: ErrorEvent) {
       const message = event?.message ?? '';
       if (message.includes('USERKEY_PLAT_NOMATCH')) {
-        setLoadError('高德 JS Key 与当前域名不匹配，已暂停地图加载。请检查 NEXT_PUBLIC_AMAP_JS_KEY 的白名单设置。');
+        setLoadError(
+          'AMap JS key does not match the current domain. Check the allowlist for NEXT_PUBLIC_AMAP_JS_KEY.',
+        );
         return;
       }
       if (!message.includes('Unimplemented type: 3')) return;
 
-      setLoadError('AMap JS SDK 当前环境渲染异常，已自动降级。请稍后刷新重试或更换浏览器。');
+      setLoadError(
+        'AMap JS failed in this browser environment. Refresh or retry in a current Chrome or Edge build.',
+      );
       if (mapRef.current) {
         try {
           mapRef.current.destroy();
@@ -128,12 +132,14 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
     }
 
     if (!amapKey) {
-      setLoadError('缺少 NEXT_PUBLIC_AMAP_JS_KEY，无法加载地图。');
+      setLoadError('Missing NEXT_PUBLIC_AMAP_JS_KEY. Live map preview is unavailable.');
       return;
     }
 
     if (!hasWebGLSupport()) {
-      setLoadError('当前运行环境缺少 WebGL，AMap 2.0 容易触发渲染错误。请改用 Chrome/Edge 最新版。');
+      setLoadError(
+        'This browser environment does not expose WebGL, so the AMap preview cannot load.',
+      );
       return;
     }
 
@@ -151,21 +157,20 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
             mapStyle: 'amap://styles/normal',
           });
 
-          // Some environments may fail when attaching default controls.
           try {
             if (typeof AMap.Scale === 'function') {
               mapRef.current.addControl(new AMap.Scale());
             }
           } catch {
-            // Keep the map usable even if a control fails to initialize.
+            // Keep the map usable even if a default control fails.
           }
         }
 
         setLoadError(null);
       })
-      .catch((err) => {
+      .catch((error) => {
         if (!destroyed) {
-          setLoadError(err instanceof Error ? err.message : '地图加载失败');
+          setLoadError(error instanceof Error ? error.message : 'Map preview failed to load.');
         }
       });
 
@@ -203,40 +208,39 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
     const AMap = (window as any).AMap;
     if (!AMap) return;
 
-    // Group stops by day — each day gets its own coloured polyline
     const dayGroups = new Map<number, (typeof routePoints)[number][]>();
-    for (const p of routePoints) {
-      const g = dayGroups.get(p.day) ?? [];
-      g.push(p);
-      dayGroups.set(p.day, g);
+    for (const point of routePoints) {
+      const group = dayGroups.get(point.day) ?? [];
+      group.push(point);
+      dayGroups.set(point.day, group);
     }
 
     let globalIdx = 0;
     const allOverlays: any[] = [];
 
-    for (const [day, pts] of dayGroups) {
+    for (const [day, points] of dayGroups) {
       const color = dayColor(day);
 
-      for (const p of pts) {
+      for (const point of points) {
         const idx = globalIdx++;
         const marker = new AMap.Marker({
-          position: [p.lng, p.lat],
-          title: `${idx + 1}. ${p.title}`,
+          position: [point.lng, point.lat],
+          title: `${idx + 1}. ${point.title}`,
           label: {
             content: buildLabelContent(idx, color, false),
             offset: new AMap.Pixel(0, -20),
           },
         });
         if (onStopSelect) {
-          marker.on('click', () => onStopSelect(p.id));
+          marker.on('click', () => onStopSelect(point.id));
         }
-        markerMetaRef.current.set(p.id, { marker, color, idx });
+        markerMetaRef.current.set(point.id, { marker, color, idx });
         allOverlays.push(marker);
       }
 
-      if (pts.length > 1) {
+      if (points.length > 1) {
         const polyline = new AMap.Polyline({
-          path: pts.map((p) => [p.lng, p.lat]),
+          path: points.map((point) => [point.lng, point.lat]),
           strokeColor: color,
           strokeWeight: 4,
           strokeOpacity: 0.85,
@@ -252,7 +256,6 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
     map.setFitView(allOverlays, false, [40, 40, 40, 40]);
   }, [routePoints, stops, onStopSelect]);
 
-  // Highlight the selected marker via label update (AMap v2 compatible)
   useEffect(() => {
     const map = mapRef.current;
     const AMap = (window as any).AMap;
@@ -264,10 +267,9 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
       applyMarkerActiveState(meta, active, AMap);
 
       if (active && typeof meta.marker?.getPosition === 'function') {
-        const pos = meta.marker.getPosition();
-        // AMap v2 LngLat: .lng / .lat
-        const lng = pos?.lng ?? pos?.getLng?.();
-        const lat = pos?.lat ?? pos?.getLat?.();
+        const position = meta.marker.getPosition();
+        const lng = position?.lng ?? position?.getLng?.();
+        const lat = position?.lat ?? position?.getLat?.();
         if (typeof lng === 'number' && typeof lat === 'number') {
           selectedPos = [lng, lat];
         }
@@ -288,15 +290,35 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
     };
   }, []);
 
+  function renderEmptyState(message: string) {
+    return (
+      <div className="flex h-[420px] w-full items-center justify-center rounded-xl bg-slate-100 px-6 text-center text-sm text-slate-500">
+        {message}
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border p-4">
-      <div className="mb-3 font-medium">地图预览</div>
-      {loadError ? (
-        <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
-          {loadError}
+      <div className="mb-1 font-medium">Map preview</div>
+      <div className="mb-3 text-xs text-slate-500">
+        Draft rows need resolved coordinates before they can be previewed on the map.
+      </div>
+
+      {renderableCount > 0 ? (
+        <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          Showing {renderableCount} mapped {renderableCount === 1 ? 'stop' : 'stops'}.
+          {unresolvedCount > 0
+            ? ` ${unresolvedCount} draft ${unresolvedCount === 1 ? 'row still needs' : 'rows still need'} resolved coordinates, usually after live optimization.`
+            : ' All current draft rows have map coordinates.'}
         </div>
       ) : null}
-      {mapProvider === 'google' ? (
+
+      {loadError ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          {loadError}
+        </div>
+      ) : mapProvider === 'google' ? (
         googleEmbedUrl ? (
           <iframe
             className="h-[420px] w-full overflow-hidden rounded-xl bg-slate-100"
@@ -305,16 +327,20 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
             referrerPolicy="no-referrer-when-downgrade"
           />
         ) : (
-          <div className="h-[420px] w-full rounded-xl bg-slate-100 text-sm text-slate-500 flex items-center justify-center">
-            暂无行程数据
-          </div>
+          renderEmptyState(
+            'No map preview yet. Run live parsing or optimization so the draft can resolve coordinates.',
+          )
         )
       ) : mapProvider === 'amap' ? (
-        <div ref={mapElRef} className="h-[420px] w-full overflow-hidden rounded-xl bg-slate-100" />
+        renderableCount > 0 ? (
+          <div ref={mapElRef} className="h-[420px] w-full overflow-hidden rounded-xl bg-slate-100" />
+        ) : (
+          renderEmptyState(
+            'No map preview yet. Run live parsing or optimization so the draft can resolve coordinates.',
+          )
+        )
       ) : (
-        <div className="h-[420px] w-full rounded-xl bg-slate-100 text-sm text-slate-500 flex items-center justify-center">
-          当前地图提供商暂无预览
-        </div>
+        renderEmptyState('Map preview is only available for AMap and Google right now.')
       )}
     </div>
   );

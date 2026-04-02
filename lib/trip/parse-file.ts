@@ -1,35 +1,35 @@
 /**
  * Client-side file parsers: CSV, Markdown table, ICS (iCalendar).
- * All functions are pure — no network calls, no server deps.
+ * All functions are pure: no network calls and no server dependencies.
  *
  * Supported column order for CSV / Markdown:
- *   天 | 地点名称 | 地址/区域 | 到达时间 | 时长(分) | 类型 | 备注
+ *   Day | Draft stop | Location | Start time | Duration (minutes) | Category | Notes
  *
- * ICS: each VEVENT maps to one stop. Day index is inferred from DTSTART date.
+ * ICS: each VEVENT maps to one draft stop. Day index is inferred from DTSTART.
  */
 
-import { StructuredStop } from './types';
+import { StructuredDraftStop } from './types';
 
-const CATEGORY_MAP: Record<string, StructuredStop['category']> = {
-  观光: 'sightseeing',
+const CATEGORY_MAP: Record<string, StructuredDraftStop['category']> = {
   sightseeing: 'sightseeing',
-  餐饮: 'meal',
+  观光: 'sightseeing',
   meal: 'meal',
-  会议: 'meeting',
+  餐饮: 'meal',
   meeting: 'meeting',
-  住宿: 'hotel',
+  会议: 'meeting',
   hotel: 'hotel',
-  交通: 'transport',
+  住宿: 'hotel',
   transport: 'transport',
-  自定义: 'custom',
+  交通: 'transport',
   custom: 'custom',
+  自定义: 'custom',
 };
 
 function makeId() {
   return `fi-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function toCategory(raw: string): StructuredStop['category'] {
+function toCategory(raw: string): StructuredDraftStop['category'] {
   return CATEGORY_MAP[raw?.trim().toLowerCase()] ?? 'custom';
 }
 
@@ -46,10 +46,9 @@ function toDay(raw: string): number {
 function toTime(raw: string): string | undefined {
   const trimmed = raw?.trim();
   if (!trimmed) return undefined;
-  // Accept HH:MM or HH:MM:SS
-  const m = trimmed.match(/^(\d{1,2}):(\d{2})/);
-  if (m) {
-    return `${m[1].padStart(2, '0')}:${m[2]}`;
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})/);
+  if (match) {
+    return `${match[1].padStart(2, '0')}:${match[2]}`;
   }
   return undefined;
 }
@@ -63,7 +62,6 @@ function parseQuotedDelimitedLine(line: string, delim: ',' | '\t'): string[] {
     const ch = line[i];
 
     if (ch === '"') {
-      // Escaped quote inside quoted cell: ""
       if (inQuotes && line[i + 1] === '"') {
         current += '"';
         i++;
@@ -95,15 +93,13 @@ type DelimitedParseOptions = {
   quotedFields?: boolean;
 };
 
-// ---------------------------------------------------------------------------
-// CSV parser
-// ---------------------------------------------------------------------------
-// Supports comma or tab delimited. First row can be a header (auto-detected).
-// Column order: 天,名称,地址,到达时间,时长,类型,备注
-function parseDelimitedText(text: string, options: DelimitedParseOptions = {}): StructuredStop[] {
+function parseDelimitedText(
+  text: string,
+  options: DelimitedParseOptions = {},
+): StructuredDraftStop[] {
   const lines = text
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    .map((line) => line.trim())
     .filter(Boolean);
 
   if (lines.length === 0) return [];
@@ -113,11 +109,10 @@ function parseDelimitedText(text: string, options: DelimitedParseOptions = {}): 
     ? parseQuotedDelimitedLine
     : parseLiteralDelimitedLine;
 
-  // Skip header row if it looks like one (first cell is not a number)
   const firstCell = parseLine(lines[0], delim)[0]?.trim() ?? '';
   const startIndex = /^\d+$/.test(firstCell) ? 0 : 1;
 
-  const stops: StructuredStop[] = [];
+  const stops: StructuredDraftStop[] = [];
 
   for (let i = startIndex; i < lines.length; i++) {
     const cols = parseLine(lines[i], delim);
@@ -143,33 +138,25 @@ function parseDelimitedText(text: string, options: DelimitedParseOptions = {}): 
   return stops;
 }
 
-export function parseCSV(text: string): StructuredStop[] {
+export function parseCSV(text: string): StructuredDraftStop[] {
   return parseDelimitedText(text, { delim: ',', quotedFields: true });
 }
 
-// ---------------------------------------------------------------------------
-// Markdown table parser
-// ---------------------------------------------------------------------------
-// Accepts standard GFM table:
-//   | 天 | 名称 | 地址 | 时间 | 时长 | 类型 | 备注 |
-//   |---|---|---|---|---|---|---|
-//   | 1 | 浅草寺 | 东京浅草 | 09:00 | 90 | 观光 | |
-export function parseMarkdown(text: string): StructuredStop[] {
-  const stops: StructuredStop[] = [];
+export function parseMarkdown(text: string): StructuredDraftStop[] {
+  const stops: StructuredDraftStop[] = [];
 
   const rows = text
     .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.startsWith('|') && l.endsWith('|'));
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('|') && line.endsWith('|'));
 
   for (const row of rows) {
     const cols = row
       .slice(1, -1)
       .split('|')
-      .map((c) => c.trim());
+      .map((cell) => cell.trim());
 
-    // Skip header / separator rows
-    if (cols.every((c) => !c || /^[-:]+$/.test(c))) continue;
+    if (cols.every((cell) => !cell || /^[-:]+$/.test(cell))) continue;
     if (!/^\d/.test(cols[0])) continue;
 
     const [dayRaw, title, location = '', timeRaw = '', durRaw = '', catRaw = '', notes = ''] =
@@ -192,13 +179,7 @@ export function parseMarkdown(text: string): StructuredStop[] {
   return stops;
 }
 
-// ---------------------------------------------------------------------------
-// ICS / iCalendar parser
-// ---------------------------------------------------------------------------
-
-// Module-scope helpers (shared by parseICSEvents and icsEventsToStops)
 function extractDate(dtStr: string): string {
-  // DTSTART;TZID=...:20240401T090000  or  20240401  or  20240401T090000Z
   return dtStr.replace(/^[^:]*:/, '').substring(0, 8);
 }
 
@@ -209,8 +190,8 @@ function toIsoDate(yyyymmdd: string): string | undefined {
 
 function extractHHMM(dtStr: string): string | undefined {
   const clean = dtStr.replace(/^[^:]*:/, '');
-  const m = clean.match(/T(\d{2})(\d{2})/);
-  if (m) return `${m[1]}:${m[2]}`;
+  const match = clean.match(/T(\d{2})(\d{2})/);
+  if (match) return `${match[1]}:${match[2]}`;
   return undefined;
 }
 
@@ -218,9 +199,16 @@ function diffMinutes(start: string, end: string): number {
   const s = start.replace(/^[^:]*:/, '');
   const e = end.replace(/^[^:]*:/, '');
   const parseTs = (ts: string) => {
-    const m = ts.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/);
-    if (!m) return null;
-    return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+    const match = ts.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/);
+    if (!match) return null;
+    return new Date(
+      +match[1],
+      +match[2] - 1,
+      +match[3],
+      +match[4],
+      +match[5],
+      +match[6],
+    ).getTime();
   };
   const tStart = parseTs(s);
   const tEnd = parseTs(e);
@@ -229,7 +217,6 @@ function diffMinutes(start: string, end: string): number {
 }
 
 function parseDuration(dur: string): number {
-  // PT1H30M, PT90M, P1DT2H, etc.
   let mins = 0;
   const days = dur.match(/(\d+)D/);
   const hours = dur.match(/(\d+)H/);
@@ -240,7 +227,6 @@ function parseDuration(dur: string): number {
   return mins > 0 ? mins : 90;
 }
 
-/** Raw VEVENT data with extracted dateStr for external date-range filtering. */
 export type ICSEvent = {
   summary: string;
   location: string;
@@ -248,11 +234,9 @@ export type ICSEvent = {
   dtend: string;
   duration: string;
   description: string;
-  /** YYYYMMDD string extracted from DTSTART */
   dateStr: string;
 };
 
-/** Parse all VEVENTs from ICS text into raw events — no day-number mapping yet. */
 export function parseICSEvents(text: string): ICSEvent[] {
   const veventRegex = /BEGIN:VEVENT([\s\S]*?)END:VEVENT/gi;
   const events: ICSEvent[] = [];
@@ -262,9 +246,9 @@ export function parseICSEvents(text: string): ICSEvent[] {
     const block = match[1];
     const get = (key: string) => {
       const unfolded = block.replace(/\r?\n[ \t]/g, '');
-      const m = unfolded.match(new RegExp(`^${key}[;:][^\r\n]*`, 'm'));
-      if (!m) return '';
-      return m[0].replace(/^[^:]+:/, '').trim();
+      const keyMatch = unfolded.match(new RegExp(`^${key}[;:][^\r\n]*`, 'm'));
+      if (!keyMatch) return '';
+      return keyMatch[0].replace(/^[^:]+:/, '').trim();
     };
     const dtstart = get('DTSTART');
     events.push({
@@ -281,66 +265,57 @@ export function parseICSEvents(text: string): ICSEvent[] {
   return events;
 }
 
-/**
- * Convert ICSEvent[] → StructuredStop[].
- * Optionally filter by [startDate, endDate] (YYYYMMDD strings, inclusive).
- * Day numbers are remapped from 1 based on remaining unique dates after filtering.
- */
 export function icsEventsToStops(
   events: ICSEvent[],
   startDate?: string,
   endDate?: string,
-): StructuredStop[] {
-  let filtered = events.filter((e) => e.summary);
-  if (startDate) filtered = filtered.filter((e) => e.dateStr >= startDate);
-  if (endDate) filtered = filtered.filter((e) => e.dateStr <= endDate);
+): StructuredDraftStop[] {
+  let filtered = events.filter((event) => event.summary);
+  if (startDate) filtered = filtered.filter((event) => event.dateStr >= startDate);
+  if (endDate) filtered = filtered.filter((event) => event.dateStr <= endDate);
   if (filtered.length === 0) return [];
 
-  const uniqueDates = [...new Set(filtered.map((e) => e.dateStr).filter(Boolean))].sort();
-  const dateToDay = Object.fromEntries(uniqueDates.map((d, i) => [d, i + 1]));
+  const uniqueDates = [...new Set(filtered.map((event) => event.dateStr).filter(Boolean))].sort();
+  const dateToDay = Object.fromEntries(uniqueDates.map((date, index) => [date, index + 1]));
 
-  return filtered.map((e) => {
-    const day = dateToDay[e.dateStr] ?? 1;
+  return filtered.map((event) => {
+    const day = dateToDay[event.dateStr] ?? 1;
     let durationMin = 90;
-    if (e.dtend) {
-      durationMin = diffMinutes(e.dtstart, e.dtend);
-    } else if (e.duration) {
-      durationMin = parseDuration(e.duration);
+    if (event.dtend) {
+      durationMin = diffMinutes(event.dtstart, event.dtend);
+    } else if (event.duration) {
+      durationMin = parseDuration(event.duration);
     }
     return {
       id: makeId(),
       day,
-      date: toIsoDate(e.dateStr),
-      title: e.summary,
-      location: e.location || e.summary,
-      earliestStart: extractHHMM(e.dtstart),
+      date: toIsoDate(event.dateStr),
+      title: event.summary,
+      location: event.location || event.summary,
+      earliestStart: extractHHMM(event.dtstart),
       durationMin,
-      category: toCategory(e.description),
+      category: toCategory(event.description),
       notes:
-        e.description && !CATEGORY_MAP[e.description.trim().toLowerCase()]
-          ? e.description
+        event.description && !CATEGORY_MAP[event.description.trim().toLowerCase()]
+          ? event.description
           : undefined,
     };
   });
 }
 
-/** Convenience: parse all events, convert to stops without date filtering. */
-export function parseICS(text: string): StructuredStop[] {
+export function parseICS(text: string): StructuredDraftStop[] {
   return icsEventsToStops(parseICSEvents(text));
 }
 
-// ---------------------------------------------------------------------------
-// Detect file type and dispatch
-// ---------------------------------------------------------------------------
-export type ParseResult =
-  | { ok: true; stops: StructuredStop[]; format: string; icsDates?: string[] }
+export type FileParseResult =
+  | { ok: true; stops: StructuredDraftStop[]; format: string; icsDates?: string[] }
   | { ok: false; error: string };
 
-export function parseFileText(filename: string, text: string): ParseResult {
+export function parseFileText(filename: string, text: string): FileParseResult {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
 
   try {
-    let stops: StructuredStop[] = [];
+    let stops: StructuredDraftStop[] = [];
     let format = '';
 
     if (ext === 'ics' || ext === 'ical') {
@@ -348,21 +323,19 @@ export function parseFileText(filename: string, text: string): ParseResult {
       stops = icsEventsToStops(events);
       format = 'iCalendar (.ics)';
       if (stops.length === 0) {
-        return { ok: false, error: '未识别到任何日历事件，请检查 .ics 文件格式。' };
+        return {
+          ok: false,
+          error: 'No calendar events were detected. Check that the .ics export is valid.',
+        };
       }
-      const icsDates = [...new Set(events.map((e) => e.dateStr).filter(Boolean))].sort();
+      const icsDates = [...new Set(events.map((event) => event.dateStr).filter(Boolean))].sort();
       return { ok: true, stops, format, icsDates };
     } else if (ext === 'md' || ext === 'markdown') {
       stops = parseMarkdown(text);
-      format = 'Markdown 表格 (.md)';
+      format = 'Markdown table (.md)';
     } else if (ext === 'csv') {
       stops = parseCSV(text);
-      format =
-        ext === 'csv'
-          ? 'CSV (.csv)'
-          : ext === 'tsv'
-            ? 'TSV (.tsv)'
-            : '文本 (.txt, 自动识别分隔符)';
+      format = 'CSV (.csv)';
     } else if (ext === 'tsv') {
       stops = parseDelimitedText(text, { delim: '\t' });
       format = 'TSV (.tsv)';
@@ -373,23 +346,25 @@ export function parseFileText(filename: string, text: string): ParseResult {
       return {
         ok: false,
         error:
-          'Excel 文件请先在表格软件中另存为 CSV（文件 → 另存为 → .csv），再上传 CSV 文件。',
+          'Excel files are not imported directly. Save the sheet as CSV UTF-8, then import the CSV file.',
       };
     } else {
-      // Try CSV as fallback for unknown extensions
       stops = parseCSV(text);
-      format = '自动识别 (CSV)';
+      format = 'Detected CSV-style text';
     }
 
     if (stops.length === 0) {
-      return { ok: false, error: '未识别到任何行程条目，请检查文件格式。' };
+      return {
+        ok: false,
+        error: 'No draft rows were detected. Check the file format and column order.',
+      };
     }
 
     return { ok: true, stops, format };
   } catch (err) {
     return {
       ok: false,
-      error: `解析失败：${err instanceof Error ? err.message : '未知错误'}`,
+      error: `Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
     };
   }
 }
