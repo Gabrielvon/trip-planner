@@ -12,11 +12,17 @@ import { StructuredDraftStop } from './types';
 
 const CATEGORY_MAP: Record<string, StructuredDraftStop['category']> = {
   sightseeing: 'sightseeing',
+  观光: 'sightseeing',
   meal: 'meal',
+  餐饮: 'meal',
   meeting: 'meeting',
+  会议: 'meeting',
   hotel: 'hotel',
+  住宿: 'hotel',
   transport: 'transport',
+  交通: 'transport',
   custom: 'custom',
+  自定义: 'custom',
 };
 
 function makeId() {
@@ -47,7 +53,7 @@ function toTime(raw: string): string | undefined {
   return undefined;
 }
 
-function parseDelimitedLine(line: string, delim: ',' | '\t'): string[] {
+function parseQuotedDelimitedLine(line: string, delim: ',' | '\t'): string[] {
   const out: string[] = [];
   let current = '';
   let inQuotes = false;
@@ -78,7 +84,19 @@ function parseDelimitedLine(line: string, delim: ',' | '\t'): string[] {
   return out;
 }
 
-export function parseCSV(text: string): StructuredDraftStop[] {
+function parseLiteralDelimitedLine(line: string, delim: ',' | '\t'): string[] {
+  return line.split(delim).map((cell) => cell.trim());
+}
+
+type DelimitedParseOptions = {
+  delim?: ',' | '\t';
+  quotedFields?: boolean;
+};
+
+function parseDelimitedText(
+  text: string,
+  options: DelimitedParseOptions = {},
+): StructuredDraftStop[] {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -86,14 +104,18 @@ export function parseCSV(text: string): StructuredDraftStop[] {
 
   if (lines.length === 0) return [];
 
-  const delim = lines[0].includes('\t') ? '\t' : ',';
-  const firstCell = parseDelimitedLine(lines[0], delim)[0]?.trim() ?? '';
+  const delim = options.delim ?? (lines[0].includes('\t') ? '\t' : ',');
+  const parseLine = options.quotedFields
+    ? parseQuotedDelimitedLine
+    : parseLiteralDelimitedLine;
+
+  const firstCell = parseLine(lines[0], delim)[0]?.trim() ?? '';
   const startIndex = /^\d+$/.test(firstCell) ? 0 : 1;
 
   const stops: StructuredDraftStop[] = [];
 
   for (let i = startIndex; i < lines.length; i++) {
-    const cols = parseDelimitedLine(lines[i], delim);
+    const cols = parseLine(lines[i], delim);
     if (cols.length < 2) continue;
 
     const [dayRaw, title, location = '', timeRaw = '', durRaw = '', catRaw = '', notes = ''] =
@@ -114,6 +136,10 @@ export function parseCSV(text: string): StructuredDraftStop[] {
   }
 
   return stops;
+}
+
+export function parseCSV(text: string): StructuredDraftStop[] {
+  return parseDelimitedText(text, { delim: ',', quotedFields: true });
 }
 
 export function parseMarkdown(text: string): StructuredDraftStop[] {
@@ -307,14 +333,15 @@ export function parseFileText(filename: string, text: string): FileParseResult {
     } else if (ext === 'md' || ext === 'markdown') {
       stops = parseMarkdown(text);
       format = 'Markdown table (.md)';
-    } else if (ext === 'csv' || ext === 'tsv' || ext === 'txt') {
+    } else if (ext === 'csv') {
       stops = parseCSV(text);
-      format =
-        ext === 'csv'
-          ? 'CSV (.csv)'
-          : ext === 'tsv'
-            ? 'TSV (.tsv)'
-            : 'Plain text table (.txt)';
+      format = 'CSV (.csv)';
+    } else if (ext === 'tsv') {
+      stops = parseDelimitedText(text, { delim: '\t' });
+      format = 'TSV (.tsv)';
+    } else if (ext === 'txt') {
+      stops = parseDelimitedText(text);
+      format = 'Text (.txt, auto-detect delimiter)';
     } else if (ext === 'xlsx' || ext === 'xls') {
       return {
         ok: false,

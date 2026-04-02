@@ -1,36 +1,44 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const { parseCSV, parseICSEvents, icsEventsToStops } = await import('../.test-dist/parse-file.js');
+const { parseCSV, parseFileText, parseICSEvents, icsEventsToStops } = await import(
+  '../.test-dist/parse-file.js'
+);
+
+function expectOk(result) {
+  assert.equal(result.ok, true);
+  return result;
+}
 
 test('parseCSV skips header row and parses basic csv', () => {
   const text = [
-    '天,名称,地址,到达时间,时长(分),类型,备注',
-    '1,浅草寺,东京浅草,09:00,90,观光,',
+    'day,title,location,time,duration,category,notes',
+    '1,Senso-ji,Asakusa,09:00,90,sightseeing,',
   ].join('\n');
 
   const stops = parseCSV(text);
   assert.equal(stops.length, 1);
   assert.equal(stops[0].day, 1);
-  assert.equal(stops[0].title, '浅草寺');
+  assert.equal(stops[0].title, 'Senso-ji');
   assert.equal(stops[0].earliestStart, '09:00');
 });
 
-test('parseCSV parses tsv-delimited rows', () => {
+test('parseFileText parses tsv-delimited rows', () => {
   const text = [
-    '天\t名称\t地址\t到达时间\t时长(分)\t类型\t备注',
-    '2\t上野公园\t东京\t10:30\t60\tsightseeing\t',
+    'day\ttitle\tlocation\ttime\tduration\tcategory\tnotes',
+    '2\tUeno Park\tTokyo\t10:30\t60\tsightseeing\t',
   ].join('\n');
 
-  const stops = parseCSV(text);
-  assert.equal(stops.length, 1);
-  assert.equal(stops[0].day, 2);
-  assert.equal(stops[0].title, '上野公园');
+  const result = expectOk(parseFileText('stops.tsv', text));
+  assert.equal(result.format, 'TSV (.tsv)');
+  assert.equal(result.stops.length, 1);
+  assert.equal(result.stops[0].day, 2);
+  assert.equal(result.stops[0].title, 'Ueno Park');
 });
 
 test('parseCSV handles quoted commas in csv fields', () => {
   const text = [
-    '天,名称,地址,到达时间,时长(分),类型,备注',
+    'day,title,location,time,duration,category,notes',
     '1,"Tokyo, Station","Chiyoda, Tokyo",09:00,45,sightseeing,"arrive early"',
   ].join('\n');
 
@@ -38,6 +46,23 @@ test('parseCSV handles quoted commas in csv fields', () => {
   assert.equal(stops.length, 1);
   assert.equal(stops[0].title, 'Tokyo, Station');
   assert.equal(stops[0].location, 'Chiyoda, Tokyo');
+});
+
+test('parseFileText preserves literal quotes in tsv fields', () => {
+  const text = ['day\ttitle', '1\tCafe "A"'].join('\n');
+
+  const result = expectOk(parseFileText('quoted.tsv', text));
+  assert.equal(result.stops.length, 1);
+  assert.equal(result.stops[0].title, 'Cafe "A"');
+});
+
+test('parseFileText preserves literal quotes in txt fields', () => {
+  const text = ['day,title', '1,Cafe "A"'].join('\n');
+
+  const result = expectOk(parseFileText('quoted.txt', text));
+  assert.equal(result.format, 'Text (.txt, auto-detect delimiter)');
+  assert.equal(result.stops.length, 1);
+  assert.equal(result.stops[0].title, 'Cafe "A"');
 });
 
 test('icsEventsToStops remaps day numbers after date filtering', () => {
