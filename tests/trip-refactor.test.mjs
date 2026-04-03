@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -20,6 +21,13 @@ const {
   readNavigationRequest,
   RouteContractError,
 } = loadTsModule('lib/trip/contracts.ts');
+const {
+  __resetLiveParseRateLimitForTests,
+  assertLiveParseDeploymentEnabled,
+  assertLiveParseRateLimit,
+  assertLiveParseTextWithinLimit,
+  readJsonRequestBody,
+} = loadTsModule('lib/trip/live-parse-guard.ts');
 
 const { parseTripTextToDraft } = loadTsModule('lib/trip/server.ts');
 
@@ -192,6 +200,31 @@ function render(element) {
   return renderToStaticMarkup(element);
 }
 
+async function withEnv(overrides, callback) {
+  const previous = new Map();
+
+  for (const [key, value] of Object.entries(overrides)) {
+    previous.set(key, process.env[key]);
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+
+  try {
+    return await callback();
+  } finally {
+    for (const [key, value] of previous.entries()) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
 test('canonical-trip preserves dates, locations, and summary fields across transforms', () => {
   const draftTrip = makeDraftTrip();
   const draftStops = draftTripToStops(draftTrip);
@@ -314,6 +347,91 @@ test('parseTripTextToDraft rejects blank input as a contract error', async () =>
     () => parseTripTextToDraft({ text: '   ', mapProvider: 'amap' }),
     (error) => error instanceof RouteContractError && error.message === 'text is required',
   );
+});
+
+test('live parse guard disables public parse in production unless explicitly enabled', async () => {
+  await withEnv(
+    {
+      NODE_ENV: 'production',
+      TRIP_PUBLIC_LIVE_PARSE_ENABLED: 'false',
+    },
+    () => {
+      assert.throws(
+        () => assertLiveParseDeploymentEnabled(),
+        (error) =>
+          error instanceof RouteContractError &&
+          error.status === 403 &&
+          /Live parse is disabled/.test(error.message),
+      );
+    },
+  );
+
+  await withEnv(
+    {
+      NODE_ENV: 'production',
+      TRIP_PUBLIC_LIVE_PARSE_ENABLED: 'true',
+    },
+    () => {
+      assert.doesNotThrow(() => assertLiveParseDeploymentEnabled());
+    },
+  );
+});
+
+test('live parse guard enforces text length, request size, and rate limits', async () => {
+  await withEnv({ TRIP_PARSE_MAX_CHARS: '5' }, () => {
+    assert.throws(
+      () => assertLiveParseTextWithinLimit('123456'),
+      (error) =>
+        error instanceof RouteContractError &&
+        error.status === 413 &&
+        /at most 5 characters/.test(error.message),
+    );
+  });
+
+  await withEnv({ TRIP_PARSE_MAX_BODY_BYTES: '10' }, async () => {
+    const oversizedRequest = new Request('https://example.test/api/trip/parse', {
+      method: 'POST',
+      body: JSON.stringify({ text: '0123456789' }),
+    });
+
+    await assert.rejects(
+      () => readJsonRequestBody(oversizedRequest),
+      (error) =>
+        error instanceof RouteContractError &&
+        error.status === 413 &&
+        /at most 10 bytes/.test(error.message),
+    );
+  });
+
+  await withEnv(
+    {
+      TRIP_PARSE_RATE_LIMIT: '2',
+      TRIP_PARSE_RATE_LIMIT_WINDOW_MS: '60000',
+    },
+    () => {
+      __resetLiveParseRateLimitForTests();
+      const request = new Request('https://example.test/api/trip/parse', {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '203.0.113.10' },
+      });
+
+      assert.doesNotThrow(() => assertLiveParseRateLimit(request));
+      assert.doesNotThrow(() => assertLiveParseRateLimit(request));
+      assert.throws(
+        () => assertLiveParseRateLimit(request),
+        (error) =>
+          error instanceof RouteContractError &&
+          error.status === 429 &&
+          /rate limit exceeded/.test(error.message),
+      );
+      __resetLiveParseRateLimitForTests();
+    },
+  );
+});
+
+test('.gitignore keeps local gstack security reports out of commits', () => {
+  const gitignore = fs.readFileSync('E:/Repos/NRI/repos-vibe/trip-planner/.gitignore', 'utf8');
+  assert.match(gitignore, /^\.gstack\/$/m);
 });
 
 test('trip-flow-state reducer handles start, slow, success, failure, and idle recovery', () => {

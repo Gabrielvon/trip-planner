@@ -25,6 +25,7 @@ build-check.log
 .npm-cache/
 
 # Local AI tool overlays
+.gstack/
 .agents/
 .claude/
 .cursor/

@@ -1,9 +1,14 @@
 import { readParseRequest, RouteContractError } from '@/lib/trip/contracts';
+import {
+  assertLiveParseRateLimit,
+  readJsonRequestBody,
+} from '@/lib/trip/live-parse-guard';
 import { parseTripTextToDraft } from '@/lib/trip/server';
 
 export async function POST(request: Request) {
   try {
-    const body = readParseRequest(await request.json());
+    assertLiveParseRateLimit(request);
+    const body = readParseRequest(await readJsonRequestBody(request));
     const result = await parseTripTextToDraft(body);
     return Response.json(result, { status: 200 });
   } catch (error) {

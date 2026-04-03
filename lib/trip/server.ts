@@ -12,6 +12,10 @@ import { draftTripToStops, scheduleToOptimizedTrip } from './canonical-trip';
 import { parseTripWithOpenAI } from './parse-openai';
 import { resolveAllStops } from './amap-provider';
 import { RouteContractError } from './contracts';
+import {
+  assertLiveParseDeploymentEnabled,
+  assertLiveParseTextWithinLimit,
+} from './live-parse-guard';
 
 type ParseBody = {
   text?: string;
@@ -114,9 +118,13 @@ export async function parseTripTextToDraft(body: ParseBody): Promise<ParseRouteR
     throw new RouteContractError('text is required');
   }
 
+  assertLiveParseDeploymentEnabled();
+  assertLiveParseTextWithinLimit(text);
+
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error(
+    throw new RouteContractError(
       'Live parse is unavailable because OPENAI_API_KEY is not set. Use demo parse instead.',
+      503,
     );
   }
 
