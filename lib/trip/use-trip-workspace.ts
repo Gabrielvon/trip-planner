@@ -29,6 +29,14 @@ import {
   selectOptimization,
   tripWorkspaceReducer,
 } from '@/lib/trip/trip-workspace-state';
+import {
+  getVisibleNavigationLinks,
+  getVisibleOptimizationState,
+  getRecoveryActionTarget,
+  hasWorkspaceStarted,
+  shouldUseDemoNavigation,
+  shouldUseDemoOptimization,
+} from '@/lib/trip/trip-workspace-helpers';
 import { structuredStopsToUiStops, uiStopsToStructuredStops } from '@/lib/trip/ui-mappers';
 
 export type TripInputMode = 'text' | 'structured' | 'file';
@@ -56,20 +64,38 @@ export function useTripWorkspace() {
   );
 
   const optimization = selectOptimization(workspaceState);
-  const parsedDayMap = useMemo(() => groupByDay(workspaceState.draftStops), [workspaceState.draftStops]);
   const currentTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai';
+  const planningSettings = {
+    travelMode,
+    objective,
+    mapProvider,
+    timezone: currentTimezone,
+  };
+  const visibleOptimization = getVisibleOptimizationState(optimization, planningSettings);
+  const visibleNavigationLinks = getVisibleNavigationLinks(
+    workspaceState.navigationLinks,
+    optimization,
+    planningSettings,
+  );
+  const parsedDayMap = useMemo(() => groupByDay(workspaceState.draftStops), [workspaceState.draftStops]);
   const modeMeta = getModeMeta(flowState.runtimeMode);
   const parseLoading = isActionActive(flowState, 'parse');
   const optimizeLoading = isActionActive(flowState, 'optimize');
   const navLoading = isActionActive(flowState, 'navigation');
   const optimizeSlow = isActionSlow(flowState, 'optimize');
   const navSlow = isActionSlow(flowState, 'navigation');
-  const hasStarted =
-    tripText.trim().length > 0 ||
-    formImportedStops.length > 0 ||
-    workspaceState.draftStops.length > 0 ||
-    optimization.optimizedStops.length > 0 ||
-    workspaceState.navigationLinks.length > 0;
+  const hasStarted = hasWorkspaceStarted({
+    tripText,
+    formImportedStopsCount: formImportedStops.length,
+    draftStopCount: workspaceState.draftStops.length,
+    optimizedStopCount: visibleOptimization.optimizedStops.length,
+    navigationLinkCount: visibleNavigationLinks.length,
+  });
+  const useDemoOptimization = shouldUseDemoOptimization(flowState.runtimeMode);
+  const useDemoNavigation = shouldUseDemoNavigation(
+    flowState.runtimeMode,
+    visibleOptimization.optimizedTrip,
+  );
 
   function clearStatus() {
     dispatchFlow({ type: 'clearStatus' });
@@ -159,9 +185,9 @@ export function useTripWorkspace() {
 
   async function handleParseLive() {
     dispatchFlow({ type: 'start', action: 'parse', lastAction: 'Running live parse...' });
+    dispatchWorkspace({ type: 'resetAll' });
 
     try {
-      dispatchWorkspace({ type: 'resetAll' });
       const result = await parseViaRoute(tripText, {
         timezone: currentTimezone,
         mapProvider,
@@ -176,7 +202,6 @@ export function useTripWorkspace() {
         warningMessage: result.warning,
       });
     } catch (error) {
-      dispatchWorkspace({ type: 'resetAll' });
       dispatchFlow({
         type: 'fail',
         action: 'parse',
@@ -189,8 +214,8 @@ export function useTripWorkspace() {
 
   async function handleParseDemo() {
     dispatchFlow({ type: 'start', action: 'parse', lastAction: 'Running demo parse...' });
-
     dispatchWorkspace({ type: 'resetAll' });
+
     const result = await parseViaDemo(tripText);
     dispatchWorkspace({ type: 'setDraft', draftStops: result.stops });
     dispatchFlow({
@@ -234,10 +259,10 @@ export function useTripWorkspace() {
         warningMessage: result.warning,
       });
     } catch (error) {
-      dispatchWorkspace({ type: 'clearOptimization' });
       dispatchFlow({
         type: 'fail',
         action: 'optimize',
+        source: 'manual',
         errorMessage: getErrorMessage(error, 'Live optimization failed.'),
         lastAction: 'Live optimization failed.',
       });
@@ -256,13 +281,14 @@ export function useTripWorkspace() {
       travelMode,
       objective,
       mapProvider,
+      currentTimezone,
     );
 
     dispatchWorkspace({
       type: 'setOptimization',
       optimizedStops: result.optimizedStops,
       schedule: result.schedule,
-      optimizedTrip: null,
+      optimizedTrip: result.optimizedTrip ?? null,
     });
     dispatchFlow({
       type: 'succeed',
@@ -282,7 +308,7 @@ export function useTripWorkspace() {
     });
 
     try {
-      const result = await navigationViaRoute(optimization.optimizedTrip);
+      const result = await navigationViaRoute(visibleOptimization.optimizedTrip);
       dispatchWorkspace({ type: 'setNavigationLinks', navigationLinks: result.links });
       dispatchFlow({
         type: 'succeed',
@@ -293,10 +319,10 @@ export function useTripWorkspace() {
         warningMessage: result.warning,
       });
     } catch (error) {
-      dispatchWorkspace({ type: 'clearNavigationLinks' });
       dispatchFlow({
         type: 'fail',
         action: 'navigation',
+        source: 'manual',
         errorMessage: getErrorMessage(error, 'Live navigation failed.'),
         lastAction: 'Live navigation failed.',
       });
@@ -323,23 +349,25 @@ export function useTripWorkspace() {
   }
 
   function handleRecoveryAction() {
-    if (flowState.failedAction === 'parse') {
+    const action = getRecoveryActionTarget(flowState.failedAction);
+
+    if (action === 'parse') {
       void handleParseDemo();
       return;
     }
 
-    if (flowState.failedAction === 'optimize') {
+    if (action === 'optimize') {
       void handleOptimizeDemo();
       return;
     }
 
-    if (flowState.failedAction === 'navigation') {
+    if (action === 'navigation') {
       void handleNavigationDemo();
     }
   }
 
   function runOptimize() {
-    if (flowState.runtimeMode === 'demo') {
+    if (useDemoOptimization) {
       void handleOptimizeDemo();
       return;
     }
@@ -348,7 +376,7 @@ export function useTripWorkspace() {
   }
 
   function runNavigation() {
-    if (flowState.runtimeMode === 'demo' || !optimization.optimizedTrip) {
+    if (useDemoNavigation) {
       void handleNavigationDemo();
       return;
     }
@@ -373,7 +401,8 @@ export function useTripWorkspace() {
     formRevision,
     flowState,
     workspaceState,
-    optimization,
+    optimization: visibleOptimization,
+    navigationLinks: visibleNavigationLinks,
     parsedDayMap,
     currentTimezone,
     modeMeta,
@@ -383,6 +412,8 @@ export function useTripWorkspace() {
     optimizeSlow,
     navSlow,
     hasStarted,
+    useDemoOptimization,
+    useDemoNavigation,
     loadSamplePreset,
     applyStructuredDraft,
     handleFileImported,

@@ -6,6 +6,7 @@ node_modules/
 out/
 *.tsbuildinfo
 .playwright-mcp/
+.test-dist/
 
 # Environment variables (never commit real keys)
 .env.local
