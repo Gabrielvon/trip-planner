@@ -433,3 +433,122 @@ test('useTripWorkspace keeps demo optimization visible after running the demo fl
 
   await view.cleanup();
 });
+
+test('useTripWorkspace clears stale results when live parse fails', async () => {
+  function WorkspaceHarness() {
+    const workspace = useTripWorkspace();
+
+    return React.createElement(
+      'div',
+      {},
+      React.createElement(
+        'button',
+        {
+          onClick: () => workspace.loadSamplePreset('text'),
+        },
+        'Load sample',
+      ),
+      React.createElement(
+        'button',
+        {
+          onClick: () => {
+            void workspace.handleParseDemo();
+          },
+        },
+        'Parse demo',
+      ),
+      React.createElement(
+        'button',
+        {
+          onClick: () => {
+            workspace.runOptimize();
+          },
+        },
+        'Run optimize',
+      ),
+      React.createElement(
+        'button',
+        {
+          onClick: () => {
+            workspace.setTripText('broken input');
+          },
+        },
+        'Change text',
+      ),
+      React.createElement(
+        'button',
+        {
+          onClick: () => {
+            void workspace.handleParseLive();
+          },
+        },
+        'Parse live',
+      ),
+      React.createElement(
+        'div',
+        { 'data-testid': 'optimized-stop-count' },
+        String(workspace.optimization.optimizedStops.length),
+      ),
+      React.createElement(
+        'div',
+        { 'data-testid': 'draft-stop-count' },
+        String(workspace.workspaceState.draftStops.length),
+      ),
+      React.createElement(
+        'div',
+        { 'data-testid': 'last-action' },
+        workspace.flowState.lastAction,
+      ),
+      React.createElement(
+        'div',
+        { 'data-testid': 'error-message' },
+        workspace.flowState.errorMessage,
+      ),
+    );
+  }
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error('parse failed');
+  };
+
+  const view = await renderIntoDom(React.createElement(WorkspaceHarness));
+
+  try {
+    await act(async () => {
+      click(findButton(view.container, 'Load sample'));
+    });
+
+    await act(async () => {
+      click(findButton(view.container, 'Parse demo'));
+      await new Promise((resolve) => setTimeout(resolve, 650));
+    });
+
+    await act(async () => {
+      click(findButton(view.container, 'Run optimize'));
+      await new Promise((resolve) => setTimeout(resolve, 750));
+    });
+
+    assert.equal(
+      Number(findByTestId(view.container, 'optimized-stop-count').textContent) > 0,
+      true,
+    );
+    assert.equal(Number(findByTestId(view.container, 'draft-stop-count').textContent) > 0, true);
+
+    await act(async () => {
+      click(findButton(view.container, 'Change text'));
+    });
+
+    await act(async () => {
+      click(findButton(view.container, 'Parse live'));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    assert.equal(findByTestId(view.container, 'optimized-stop-count').textContent, '0');
+    assert.equal(findByTestId(view.container, 'draft-stop-count').textContent, '0');
+    assert.match(findByTestId(view.container, 'error-message').textContent, /parse failed/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await view.cleanup();
+  }
+});

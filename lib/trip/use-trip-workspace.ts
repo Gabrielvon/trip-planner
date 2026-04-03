@@ -185,6 +185,7 @@ export function useTripWorkspace() {
 
   async function handleParseLive() {
     dispatchFlow({ type: 'start', action: 'parse', lastAction: 'Running live parse...' });
+    dispatchWorkspace({ type: 'resetAll' });
 
     try {
       const result = await parseViaRoute(tripText, {
@@ -212,6 +213,7 @@ export function useTripWorkspace() {
 
   async function handleParseDemo() {
     dispatchFlow({ type: 'start', action: 'parse', lastAction: 'Running demo parse...' });
+    dispatchWorkspace({ type: 'resetAll' });
 
     const result = await parseViaDemo(tripText);
     dispatchWorkspace({ type: 'setDraft', draftStops: result.stops });
