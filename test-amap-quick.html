@@ -1,0 +1,36 @@
+<!DOCTYPE html> 
+<html> 
+<head> 
+    <title>AMap密钥测试</title> 
+</head> 
+<body> 
+    <h1>AMap密钥测试</h1> 
+    <div id="status">正在测试...</div> 
+    <div id="map" style="width:600px;height:400px;"></div> 
+    <script> 
+        const key = "8d4b1ce0f777a7690ff3719897d61668"; 
+        const script = document.createElement('script'); 
+        script.src = 'https://webapi.amap.com/maps?v=2.0&key=' + key + '&plugin=AMap.Scale'; 
+        script.onload = function() { 
+            if (window.AMap) { 
+                document.getElementById('status').innerHTML = '✅ AMap SDK加载成功！'; 
+                try { 
+                    const map = new AMap.Map('map', { 
+                        zoom: 11, 
+                        center: [121.4737, 31.2304] 
+                    }); 
+                    document.getElementById('status').innerHTML += '✅ 地图创建成功！'; 
+                } catch (e) { 
+                    document.getElementById('status').innerHTML += '❌ 地图创建失败：' + e.message; 
+                } 
+            } else { 
+                document.getElementById('status').innerHTML = '❌ AMap SDK加载失败'; 
+            } 
+        }; 
+        script.onerror = function() { 
+            document.getElementById('status').innerHTML = '❌ AMap SDK加载失败，请检查密钥'; 
+        }; 
+        document.head.appendChild(script); 
+    </script> 
+</body> 
+</html> 

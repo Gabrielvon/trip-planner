@@ -26,11 +26,29 @@ Day 4 is a Zhujiajiao water town day trip with a return to Shanghai.
 Day 5 covers Hangzhou highlights and ends at Pudong Airport.`,
   },
   {
+    id: 'shanghai-chinese',
+    label: '上海五日游行程草稿 (中文)',
+    provider: 'amap',
+    text: `请帮我规划一个5天的上海行程，使用高德地图。
+第一天从虹桥火车站开始，然后去外滩、豫园、南京路、新天地，最后在人民广场附近结束。
+第二天从人民广场附近开始，然后去上海博物馆、静安寺、武康路，最后回酒店。
+第三天是苏州一日游，参观古典园林，晚上返回上海。
+第四天是朱家角水乡一日游，返回上海。
+第五天游览杭州主要景点，最后到浦东机场结束。`,
+  },
+  {
     id: 'shenzhen-amap',
     label: 'Shenzhen day trip draft (AMap)',
     provider: 'amap',
     text: `Compile a 1-day Shenzhen itinerary with AMap.
 Day 1 starts at Shenzhen North Station, then Splendid China Folk Village, OCT Harbour, Shenzhen Bay Park, Nantou Ancient Town, and ends at Shenzhen Bao'an Airport.`,
+  },
+  {
+    id: 'shenzhen-chinese',
+    label: '深圳一日游行程草稿 (中文)',
+    provider: 'amap',
+    text: `请帮我规划一个1天的深圳行程，使用高德地图。
+第一天从深圳北站开始，然后去锦绣中华民俗村、欢乐海岸、深圳湾公园、南头古城，最后在深圳宝安机场结束。`,
   },
   {
     id: 'beijing-amap',
@@ -40,6 +58,13 @@ Day 1 starts at Shenzhen North Station, then Splendid China Folk Village, OCT Ha
 Day 1 starts at Beijing South Railway Station, then Tiananmen Square, the Forbidden City, Jingshan Park, Wangfujing, and ends near the Lama Temple.`,
   },
   {
+    id: 'beijing-chinese',
+    label: '北京一日游行程草稿 (中文)',
+    provider: 'amap',
+    text: `请帮我规划一个1天的北京行程，使用高德地图。
+第一天从北京南站开始，然后去天安门广场、故宫、景山公园、王府井，最后在雍和宫附近结束。`,
+  },
+  {
     id: 'japan-google',
     label: 'Tokyo day trip draft (Google Maps)',
     provider: 'google',
@@ -47,11 +72,42 @@ Day 1 starts at Beijing South Railway Station, then Tiananmen Square, the Forbid
 Day 1 starts at Tokyo Station, then Senso-ji, Ueno Park, Tokyo Skytree, Shibuya Crossing, and ends at Shinjuku hotel in the evening.`,
   },
   {
+    id: 'japan-chinese',
+    label: '东京一日游行程草稿 (中文)',
+    provider: 'google',
+    text: `请帮我规划一个1天的东京行程，使用Google地图。
+第一天从东京站开始，然后去浅草寺、上野公园、东京晴空塔、涩谷十字路口，最后在晚上到新宿酒店结束。`,
+  },
+  {
     id: 'newyork-google',
     label: 'New York day trip draft (Google Maps)',
     provider: 'google',
     text: `Compile a 1-day New York itinerary with Google Maps.
 Day 1 starts at Penn Station, then Times Square, Central Park South, The Met, Brooklyn Bridge Park, and ends at JFK Airport in the evening.`,
+  },
+  {
+    id: 'newyork-chinese',
+    label: '纽约一日游行程草稿 (中文)',
+    provider: 'google',
+    text: `请帮我规划一个1天的纽约行程，使用Google地图。
+第一天从宾夕法尼亚车站开始，然后去时代广场、中央公园南侧、大都会艺术博物馆、布鲁克林大桥公园，最后在晚上到肯尼迪机场结束。`,
+  },
+  {
+    id: 'taiwan-chinese',
+    label: '台湾三日游行程草稿 (中文)',
+    provider: 'google',
+    text: `请帮我规划一个3天的台湾行程，使用Google地图。
+第一天从台北松山机场开始，然后去中正纪念堂、台北101、西门町，最后在台北车站附近结束。
+第二天从台北车站开始，然后去九份老街、十分瀑布、平溪放天灯，最后返回台北。
+第三天从台北开始，然后去淡水老街、渔人码头、士林夜市，最后到桃园机场结束。`,
+  },
+  {
+    id: 'hongkong-chinese',
+    label: '香港两日游行程草稿 (中文)',
+    provider: 'google',
+    text: `请帮我规划一个2天的香港行程，使用Google地图。
+第一天从香港西九龙站开始，然后去维多利亚港、太平山顶、兰桂坊，最后在尖沙咀附近结束。
+第二天从尖沙咀开始，然后去迪士尼乐园、铜锣湾购物、庙街夜市，最后到香港机场结束。`,
   },
 ];
 
@@ -350,11 +406,22 @@ export function parseTripTextMock(raw: string): DraftStop[] {
   const text = raw.trim();
   if (!text) return SHANGHAI_SEED_STOPS;
 
-  if (/Shenzhen|深圳/i.test(text)) return SHENZHEN_SEED_STOPS;
-  if (/Beijing|北京/i.test(text)) return BEIJING_SEED_STOPS;
-  if (/Tokyo|Japan|东京|日本/i.test(text)) return TOKYO_SEED_STOPS;
-  if (/New\s*York|NYC|纽约/i.test(text)) return NEWYORK_SEED_STOPS;
-  if (/Shanghai|上海/i.test(text)) return SHANGHAI_SEED_STOPS;
+  // Check for Chinese location names first
+  if (/深圳/i.test(text)) return SHENZHEN_SEED_STOPS;
+  if (/北京/i.test(text)) return BEIJING_SEED_STOPS;
+  if (/东京|日本/i.test(text)) return TOKYO_SEED_STOPS;
+  if (/纽约/i.test(text)) return NEWYORK_SEED_STOPS;
+  if (/上海/i.test(text)) return SHANGHAI_SEED_STOPS;
+  if (/台湾|台北/i.test(text)) return SHANGHAI_SEED_STOPS; // Use Shanghai as placeholder for Taiwan
+  if (/香港/i.test(text)) return SHENZHEN_SEED_STOPS; // Use Shenzhen as placeholder for Hong Kong
+
+  // Check for English location names
+  if (/Shenzhen/i.test(text)) return SHENZHEN_SEED_STOPS;
+  if (/Beijing/i.test(text)) return BEIJING_SEED_STOPS;
+  if (/Tokyo|Japan/i.test(text)) return TOKYO_SEED_STOPS;
+  if (/New\s*York|NYC/i.test(text)) return NEWYORK_SEED_STOPS;
+  if (/Shanghai/i.test(text)) return SHANGHAI_SEED_STOPS;
+  
   return SHANGHAI_SEED_STOPS;
 }
 
