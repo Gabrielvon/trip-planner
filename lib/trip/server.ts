@@ -16,6 +16,15 @@ import {
   assertLiveParseDeploymentEnabled,
   assertLiveParseTextWithinLimit,
 } from './live-parse-guard';
+import {
+  detectLocationFromIp,
+  selectMapProviderByLocation,
+  getMapProviderWithFallback,
+  isMapProviderAccessible,
+  extractIpFromRequest,
+  GeoDetectionResult
+} from './geolocation';
+import { mapServiceManager } from './map-service-manager';
 
 type ParseBody = {
   text?: string;
@@ -109,9 +118,8 @@ function hasMissingResolvedPlace(trip: TripDraft): boolean {
   });
 }
 
-export async function parseTripTextToDraft(body: ParseBody): Promise<ParseRouteResponse> {
+export async function parseTripTextToDraft(body: ParseBody, request?: Request): Promise<ParseRouteResponse> {
   const timezone = isNonEmptyString(body.timezone) ? body.timezone : 'Asia/Shanghai';
-  const mapProvider = body.mapProvider ?? 'amap';
   const text = isNonEmptyString(body.text) ? body.text.trim() : '';
 
   if (!text) {
@@ -128,16 +136,62 @@ export async function parseTripTextToDraft(body: ParseBody): Promise<ParseRouteR
     );
   }
 
+  // Detect user location from IP for intelligent map provider selection
+  let geoDetection: GeoDetectionResult | undefined;
   try {
-    const result = await parseTripWithOpenAI(text, timezone, mapProvider);
-    if (process.env.AMAP_API_KEY && mapProvider === 'amap') {
+    // Extract IP from request if available
+    const ip = request ? extractIpFromRequest(request) : undefined;
+    geoDetection = await detectLocationFromIp(ip);
+  } catch (error) {
+    console.error('[parse] Geolocation detection failed:', error);
+  }
+
+  // Select map provider based on location
+  const userPreferredProvider = body.mapProvider;
+  const location = geoDetection?.location;
+  const mapProvider = selectMapProviderByLocation(location, userPreferredProvider);
+  
+  // Get fallback provider in case primary fails
+  const { primary, fallback } = getMapProviderWithFallback(mapProvider);
+  const isPrimaryAccessible = isMapProviderAccessible(primary, location);
+  
+  let selectedProvider = primary;
+  let fallbackWarning = '';
+  
+  if (!isPrimaryAccessible && primary !== fallback) {
+    selectedProvider = fallback;
+    fallbackWarning = `Selected ${primary} may not be accessible from your location. Using ${fallback} instead.`;
+  }
+
+  try {
+    const result = await parseTripWithOpenAI(text, timezone, selectedProvider);
+    
+    // Add geolocation info to result
+    if (geoDetection?.location) {
+      result.warnings.push(
+        `Detected location: ${geoDetection.location.country} (${geoDetection.location.countryCode})`
+      );
+    }
+    
+    if (fallbackWarning) {
+      result.warnings.push(fallbackWarning);
+    }
+    
+    // Try to resolve locations with the selected provider
+    if (selectedProvider === 'amap' && process.env.AMAP_API_KEY) {
       try {
-        result.trip.days = await resolveAllStops(result.trip.days, mapProvider);
+        result.trip.days = await resolveAllStops(result.trip.days, selectedProvider);
       } catch (error) {
         console.error('[parse] AMap geocoding failed, using unresolved coords:', error);
         result.warnings.push('AMap geocoding failed. Review unresolved places before optimization.');
+        
+        // Try fallback if AMap fails
+        if (selectedProvider === 'amap' && fallback === 'google') {
+          result.warnings.push('Falling back to Google Maps for navigation links.');
+        }
       }
     }
+    
     return result;
   } catch (error) {
     console.error('[parse] OpenAI call failed:', error);
@@ -147,12 +201,30 @@ export async function parseTripTextToDraft(body: ParseBody): Promise<ParseRouteR
   }
 }
 
-export async function optimizeTripServer(body: OptimizeBody): Promise<OptimizeRouteResponse> {
+export async function optimizeTripServer(
+  body: OptimizeBody,
+  request?: Request,
+): Promise<OptimizeRouteResponse> {
   if (!body.trip) {
     throw new Error('trip is required');
   }
 
   const trip = { ...body.trip };
+
+  // Detect location for intelligent provider selection if not specified
+  if (!trip.mapProvider && request) {
+    try {
+      // Extract IP from request if available
+      const ip = extractIpFromRequest(request);
+      const geoDetection = await detectLocationFromIp(ip);
+      const location = geoDetection?.location;
+      trip.mapProvider = selectMapProviderByLocation(location);
+    } catch (error) {
+      console.error('[optimize] Geolocation detection failed:', error);
+      // Fallback to default
+      trip.mapProvider = 'amap';
+    }
+  }
 
   if (
     process.env.AMAP_API_KEY &&
@@ -192,6 +264,7 @@ export async function optimizeTripServer(body: OptimizeBody): Promise<OptimizeRo
 
 export async function buildNavigationLinksServer(
   body: NavigationBody,
+  request?: Request,
 ): Promise<NavigationLinksRouteResponse> {
   if (!body.trip) {
     throw new Error('trip is required');
@@ -199,8 +272,18 @@ export async function buildNavigationLinksServer(
 
   const trip = body.trip;
 
-  return {
-    days: trip.optimizedDays.map((day) => {
+  // Detect location for intelligent provider selection
+  let geoDetection: GeoDetectionResult | undefined;
+  try {
+    // Extract IP from request if available
+    const ip = request ? extractIpFromRequest(request) : undefined;
+    geoDetection = await detectLocationFromIp(ip);
+  } catch (error) {
+    console.error('[navigation] Geolocation detection failed:', error);
+  }
+
+  const daysWithNavigation = await Promise.all(
+    trip.optimizedDays.map(async (day) => {
       const stops = day.orderedStops
         .filter((stop) => stop.resolvedPlace)
         .map((stop) => ({
@@ -209,13 +292,64 @@ export async function buildNavigationLinksServer(
           name: stop.resolvedPlace!.name,
         }));
 
-      return {
-        day: day.day,
-        navigationUrl:
-          trip.mapProvider === 'google'
-            ? buildGoogleNavigationUrl(stops, trip.transportMode)
-            : buildAmapNavigationUrl(stops, trip.transportMode),
-      };
-    }),
+      if (stops.length === 0) {
+        return { day: day.day, navigationUrl: undefined };
+      }
+
+      try {
+        // Use map service manager with intelligent fallback
+        const result = await mapServiceManager.getNavigationUrl(
+          stops,
+          trip.transportMode,
+          trip.mapProvider,
+          geoDetection?.location
+        );
+
+        // Log warnings if any
+        if (result.warnings.length > 0) {
+          console.warn(`[navigation] Day ${day.day} warnings:`, result.warnings);
+        }
+
+        // If using fallback, update the trip's map provider for consistency
+        if (result.isFallback && result.provider !== trip.mapProvider) {
+          console.log(`[navigation] Day ${day.day}: Using ${result.provider} as fallback from ${trip.mapProvider}`);
+        }
+
+        return {
+          day: day.day,
+          navigationUrl: result.url,
+          provider: result.provider,
+          isFallback: result.isFallback,
+          warnings: result.warnings
+        };
+      } catch (error) {
+        console.error(`[navigation] Failed to generate navigation URL for day ${day.day}:`, error);
+        
+        // Even if all providers fail, we can create a basic map link
+        if (stops.length > 0) {
+          const firstStop = stops[0];
+          const lastStop = stops[stops.length - 1];
+          const basicUrl = `https://www.openstreetmap.org/directions?from=${firstStop.lat},${firstStop.lng}&to=${lastStop.lat},${lastStop.lng}`;
+          
+          return {
+            day: day.day,
+            navigationUrl: basicUrl,
+            provider: 'mapbox' as MapProvider,
+            isFallback: true,
+            warnings: [`All map providers failed. Using OpenStreetMap as last resort: ${(error as Error).message}`]
+          };
+        }
+        
+        return { day: day.day, navigationUrl: undefined };
+      }
+    })
+  );
+
+  // Filter out provider info for backward compatibility
+  return {
+    days: daysWithNavigation.map(day => ({
+      day: day.day,
+      navigationUrl: day.navigationUrl
+    }))
   };
 }

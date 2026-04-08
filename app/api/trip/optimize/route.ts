@@ -4,7 +4,7 @@ import { optimizeTripServer } from '@/lib/trip/server';
 export async function POST(request: Request) {
   try {
     const body = readOptimizeRequest(await request.json());
-    const result = await optimizeTripServer(body);
+    const result = await optimizeTripServer(body, request);
     return Response.json(result, { status: 200 });
   } catch (error) {
     if (error instanceof RouteContractError) {

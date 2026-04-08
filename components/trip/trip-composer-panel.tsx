@@ -1,6 +1,7 @@
 'use client';
 
 import FileImporter from '@/components/trip/file-importer';
+import LLMConfigPanel from '@/components/trip/llm-config-panel';
 import StructuredForm from '@/components/trip/structured-form';
 import { SAMPLE_PRESETS } from '@/lib/trip/mock';
 import type { RuntimeMode } from '@/lib/trip/trip-flow-state';
@@ -37,6 +38,7 @@ type TripComposerPanelProps = {
   onRunNavigation: () => void;
   parsedDayMap: ParsedDayMap;
   draftStopCount: number;
+  hasUserLLMConfig: boolean;
 };
 
 export default function TripComposerPanel({
@@ -67,9 +69,18 @@ export default function TripComposerPanel({
   onRunNavigation,
   parsedDayMap,
   draftStopCount,
+  hasUserLLMConfig,
 }: TripComposerPanelProps) {
   return (
     <div className="space-y-4">
+      {hasUserLLMConfig && (
+        <div className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>Using custom LLM configuration</span>
+        </div>
+      )}
       <div className="space-y-3 rounded-2xl border p-4">
         <div className="flex overflow-hidden rounded-xl border">
           <button
@@ -167,6 +178,8 @@ export default function TripComposerPanel({
           <FileImporter onToForm={onFileImported} />
         )}
       </div>
+
+      <LLMConfigPanel />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <button

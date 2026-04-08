@@ -8,8 +8,10 @@ import {
   optimizeViaRoute,
   parseViaDemo,
   parseViaRoute,
+  parseViaUserLLM,
   TripClientError,
 } from '@/lib/trip/parse-client';
+import { getLLMConfig, hasUserLLMConfig } from '@/lib/trip/llm-config';
 import {
   MapProvider,
   Objective,
@@ -128,7 +130,7 @@ export function useTripWorkspace() {
       return;
     }
 
-    const stops = parseTripTextMock(preset.text);
+    const stops = parseTripTextMock(preset.text, preset.id);
     const rows = uiStopsToStructuredStops(stops);
     setFormImportedStops(rows);
     setFormRevision((value) => value + 1);
@@ -188,10 +190,24 @@ export function useTripWorkspace() {
     dispatchWorkspace({ type: 'resetAll' });
 
     try {
-      const result = await parseViaRoute(tripText, {
-        timezone: currentTimezone,
-        mapProvider,
-      });
+      // Check if user has custom LLM config
+      const userConfig = getLLMConfig();
+      
+      let result;
+      if (userConfig) {
+        // Use user's custom LLM configuration
+        result = await parseViaUserLLM(tripText, userConfig, {
+          timezone: currentTimezone,
+          mapProvider,
+        });
+      } else {
+        // Use default system configuration (env vars)
+        result = await parseViaRoute(tripText, {
+          timezone: currentTimezone,
+          mapProvider,
+        });
+      }
+      
       dispatchWorkspace({ type: 'setDraft', draftStops: result.stops });
       dispatchFlow({
         type: 'succeed',
@@ -414,6 +430,7 @@ export function useTripWorkspace() {
     hasStarted,
     useDemoOptimization,
     useDemoNavigation,
+    hasUserLLMConfig: hasUserLLMConfig(),
     loadSamplePreset,
     applyStructuredDraft,
     handleFileImported,

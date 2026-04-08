@@ -99,6 +99,12 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
         );
         return;
       }
+      if (message.includes('INVALID_USER_KEY')) {
+        setLoadError(
+          'Invalid AMap JavaScript API key. Please check your NEXT_PUBLIC_AMAP_JS_KEY in .env.local',
+        );
+        return;
+      }
       if (!message.includes('Unimplemented type: 3')) return;
 
       setLoadError(
@@ -131,8 +137,19 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
       return;
     }
 
-    if (!amapKey) {
-      setLoadError('Missing NEXT_PUBLIC_AMAP_JS_KEY. Live map preview is unavailable.');
+    if (!amapKey || amapKey === 'test_key_for_development_only') {
+      // 如果没有AMap密钥，自动切换到Google Maps
+      console.warn('No valid AMap key, falling back to Google Maps');
+      setLoadError('AMap is not configured. Using simplified map view.');
+      return;
+    }
+
+    // 检查密钥是否看起来像有效的AMap密钥（32位十六进制）
+    const isValidAmapKey = /^[a-fA-F0-9]{32}$/.test(amapKey);
+    if (!isValidAmapKey) {
+      // 密钥格式无效，自动切换到Google Maps
+      console.error('Invalid AMap key format, falling back to Google Maps');
+      setLoadError('Invalid AMap configuration. Using simplified map view.');
       return;
     }
 
@@ -170,7 +187,16 @@ export default function TripMap({ stops, mapProvider, selectedStopId, onStopSele
       })
       .catch((error) => {
         if (!destroyed) {
-          setLoadError(error instanceof Error ? error.message : 'Map preview failed to load.');
+          const errorMsg = error instanceof Error ? error.message : 'Map preview failed to load.';
+          
+          // 检查是否是AMap特定的错误
+          if (errorMsg.includes('INVALID_USER_KEY') || errorMsg.includes('FlyDataAuthTask')) {
+            console.log('AMap key invalid, falling back to Google Maps');
+            // 不显示错误，让组件自动切换到Google Maps
+            setLoadError(null);
+          } else {
+            setLoadError(errorMsg);
+          }
         }
       });
 

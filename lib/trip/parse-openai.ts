@@ -9,7 +9,7 @@
  */
 
 import OpenAI from 'openai';
-import { MapProvider, TripDraft } from './types';
+import type { LLMConfig, MapProvider, TripDraft } from './types';
 
 // ---------------------------------------------------------------------------
 // JSON Schema targeting TripDraft
@@ -213,6 +213,60 @@ export async function parseTripWithOpenAI(
   delete (parsed as any).warnings;
 
   // Stamp IDs for any stops that came back without one (defensive)
+  parsed.days?.forEach((day, di) => {
+    day.stops?.forEach((stop, si) => {
+      if (!stop.id) {
+        stop.id = `d${di + 1}-s${si + 1}`;
+      }
+    });
+  });
+
+  return { trip: parsed, warnings };
+}
+
+// ---------------------------------------------------------------------------
+// Parse with custom LLM config (user-provided API settings)
+// ---------------------------------------------------------------------------
+
+export async function parseTripWithCustomLLM(
+  text: string,
+  config: LLMConfig,
+  timezone: string,
+  mapProvider: MapProvider,
+): Promise<{ trip: TripDraft; warnings: string[] }> {
+  const client = new OpenAI({
+    apiKey: config.apiKey,
+    baseURL: config.baseUrl,
+  });
+
+  const response = await client.chat.completions.create({
+    model: config.modelName,
+    response_format: {
+      type: 'json_schema',
+      json_schema: TRIP_JSON_SCHEMA,
+    },
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: `Parse this trip description. Use timezone="${timezone}" and mapProvider="${mapProvider}".\n\n${text}`,
+      },
+    ],
+    temperature: 0.1,
+    max_tokens: 4096,
+  });
+
+  const raw = response.choices[0]?.message?.content;
+  if (!raw) {
+    throw new Error('LLM returned empty content');
+  }
+
+  const parsed = JSON.parse(raw) as TripDraft & { warnings?: string[] };
+
+  const warnings: string[] = parsed.warnings ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  delete (parsed as any).warnings;
+
   parsed.days?.forEach((day, di) => {
     day.stops?.forEach((stop, si) => {
       if (!stop.id) {
