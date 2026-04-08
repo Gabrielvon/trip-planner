@@ -4,7 +4,7 @@ import { buildNavigationLinksServer } from '@/lib/trip/server';
 export async function POST(request: Request) {
   try {
     const body = readNavigationRequest(await request.json());
-    const result = await buildNavigationLinksServer(body, request);
+    const result = await buildNavigationLinksServer(body);
     return Response.json(result, { status: 200 });
   } catch (error) {
     if (error instanceof RouteContractError) {

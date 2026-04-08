@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   try {
     assertLiveParseRateLimit(request);
     const body = readParseRequest(await readJsonRequestBody(request));
-    const result = await parseTripTextToDraft(body, request);
+    const result = await parseTripTextToDraft(body);
     return Response.json(result, { status: 200 });
   } catch (error) {
     if (error instanceof RouteContractError) {

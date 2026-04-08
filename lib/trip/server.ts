@@ -44,36 +44,6 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-/**
- * Extract client IP address from request headers
- * Supports common proxy headers: X-Forwarded-For, X-Real-IP
- */
-function extractIpFromRequest(request?: Request): string | undefined {
-  if (!request) return undefined;
-  
-  const headers = request.headers;
-  
-  // Try X-Forwarded-For (common in proxy setups)
-  const xForwardedFor = headers.get('x-forwarded-for');
-  if (xForwardedFor) {
-    // X-Forwarded-For can contain multiple IPs, take the first one
-    const ips = xForwardedFor.split(',').map(ip => ip.trim());
-    return ips[0];
-  }
-  
-  // Try X-Real-IP
-  const xRealIp = headers.get('x-real-ip');
-  if (xRealIp) {
-    return xRealIp;
-  }
-  
-  // In development or direct connections, use the connection remote address
-  // Note: This requires access to request.socket which is not available in Next.js Edge/Serverless
-  // For production, ensure your deployment sets proper proxy headers
-  
-  return undefined;
-}
-
 function buildAmapNavigationUrl(
   stops: Array<{
     lng: number;
@@ -147,10 +117,7 @@ function hasMissingResolvedPlace(trip: TripDraft): boolean {
   });
 }
 
-export async function parseTripTextToDraft(
-  body: ParseBody,
-  request?: Request
-): Promise<ParseRouteResponse> {
+export async function parseTripTextToDraft(body: ParseBody): Promise<ParseRouteResponse> {
   const timezone = isNonEmptyString(body.timezone) ? body.timezone : 'Asia/Shanghai';
   const text = isNonEmptyString(body.text) ? body.text.trim() : '';
 
@@ -171,9 +138,9 @@ export async function parseTripTextToDraft(
   // Detect user location from IP for intelligent map provider selection
   let geoDetection: GeoDetectionResult | undefined;
   try {
-    // Extract IP from request headers
-    const ip = extractIpFromRequest(request);
-    geoDetection = await detectLocationFromIp(ip);
+    // In a real implementation, you would get the IP from the request
+    // For now, we'll detect from the current server's IP
+    geoDetection = await detectLocationFromIp();
   } catch (error) {
     console.error('[parse] Geolocation detection failed:', error);
   }
@@ -278,7 +245,6 @@ export async function optimizeTripServer(body: OptimizeBody): Promise<OptimizeRo
 
 export async function buildNavigationLinksServer(
   body: NavigationBody,
-  request?: Request
 ): Promise<NavigationLinksRouteResponse> {
   if (!body.trip) {
     throw new Error('trip is required');
@@ -289,8 +255,7 @@ export async function buildNavigationLinksServer(
   // Detect location for intelligent provider selection
   let geoDetection: GeoDetectionResult | undefined;
   try {
-    const ip = extractIpFromRequest(request);
-    geoDetection = await detectLocationFromIp(ip);
+    geoDetection = await detectLocationFromIp();
   } catch (error) {
     console.error('[navigation] Geolocation detection failed:', error);
   }
