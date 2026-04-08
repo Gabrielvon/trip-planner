@@ -3,6 +3,16 @@ export type Objective = 'fastest' | 'shortest' | 'balanced';
 export type MapProvider = 'amap' | 'google' | 'mapbox';
 export type DataSource = 'api' | 'mock' | 'manual';
 
+/**
+ * User-configurable LLM settings for OpenAI-compatible APIs.
+ * Stored in localStorage, takes precedence over system default (env vars).
+ */
+export type LLMConfig = {
+  apiKey: string;
+  baseUrl: string;
+  modelName: string;
+};
+
 export type StructuredDraftStop = {
   id: string;
   day: number;

@@ -268,16 +268,28 @@ export function selectMapProviderByLocation(
 export function getMapProviderWithFallback(
   primaryProvider: MapProvider
 ): { primary: MapProvider; fallback: MapProvider } {
-  if (primaryProvider === 'amap') {
-    return {
-      primary: 'amap',
-      fallback: 'google'
-    };
-  } else {
-    return {
-      primary: 'google',
-      fallback: 'amap'
-    };
+  switch (primaryProvider) {
+    case 'amap':
+      return {
+        primary: 'amap',
+        fallback: 'google'
+      };
+    case 'google':
+      return {
+        primary: 'google',
+        fallback: 'mapbox'
+      };
+    case 'mapbox':
+      return {
+        primary: 'mapbox',
+        fallback: 'google'
+      };
+    default:
+      // Default fallback for unknown providers
+      return {
+        primary: 'amap',
+        fallback: 'google'
+      };
   }
 }
 
@@ -301,8 +313,52 @@ export function isMapProviderAccessible(
   // AMap may have limited coverage outside China
   if (provider === 'amap' && !location.isInChinaMainland) {
     // AMap works globally but may have less detailed data
-    return true; // Still accessible, just less optimal
+    return false; // Not accessible outside China
   }
   
   return true;
+}
+
+/**
+ * Extract IP address from HTTP request headers
+ * 
+ * This function extracts the user's IP address from request headers,
+ * handling common proxy headers like X-Forwarded-For, X-Real-IP, etc.
+ */
+export function extractIpFromRequest(request: Request): string | undefined {
+  const headers = request.headers;
+  
+  // Check common proxy headers in order of preference
+  const ipHeaders = [
+    'x-forwarded-for',
+    'x-real-ip',
+    'cf-connecting-ip', // Cloudflare
+    'true-client-ip', // Akamai and others
+    'x-cluster-client-ip',
+  ];
+  
+  for (const header of ipHeaders) {
+    const value = headers.get(header);
+    if (value) {
+      // X-Forwarded-For can contain multiple IPs (client, proxy1, proxy2...)
+      // Take the first one which is the original client IP
+      const ips = value.split(',').map(ip => ip.trim());
+      const clientIp = ips[0];
+      
+      // Validate IP format (basic validation)
+      if (clientIp && /^[0-9a-f.:]+$/i.test(clientIp)) {
+        return clientIp;
+      }
+    }
+  }
+  
+  // If no proxy headers, try to get from request connection info
+  // Note: In serverless environments, this may not be available
+  const cfConnectingIp = headers.get('cf-connecting-ip');
+  if (cfConnectingIp) {
+    return cfConnectingIp;
+  }
+  
+  // For development/local testing, return undefined
+  return undefined;
 }

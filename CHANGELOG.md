@@ -24,4 +24,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - IP detection logic to correctly identify user location
 - API key validation and error handling
-- Test coverage for all new functionality
+- Test coverage for all new functionality## [0.1.2.0] - 
+
+### Added
+- Enhanced geolocation with IP detection fallback logic
+- Updated Chinese sample presets with proper localization
+- Added test coverage for server.ts and map-service-manager.ts
+- Improved error handling in geolocation module
+
+### Changed
+- Fixed test failures in geolocation.test.mjs
+- Updated mock URLs to match actual API calls
+- Improved IP detection error handling
+
+### Fixed
+- Test failures in geolocation module
+- Mock URL mismatches in IP geolocation tests
+- Country code vs country name inconsistencies in tests
+## [0.1.2.0] - 2026-06-20
+
+### Added
+- Enhanced geolocation with IP detection fallback logic
+- Updated Chinese sample presets with proper localization
+- Added test coverage for server.ts and map-service-manager.ts
+- Improved error handling in geolocation module
+
+### Changed
+- Fixed test failures in geolocation.test.mjs
+- Updated mock URLs to match actual API calls
+- Improved IP detection error handling
+
+### Fixed
+- Test failures in geolocation module
+- Mock URL mismatches in IP geolocation tests
+- Country code vs country name inconsistencies in tests

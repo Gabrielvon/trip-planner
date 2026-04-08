@@ -21,6 +21,7 @@ import {
   selectMapProviderByLocation,
   getMapProviderWithFallback,
   isMapProviderAccessible,
+  extractIpFromRequest,
   GeoDetectionResult
 } from './geolocation';
 import { mapServiceManager } from './map-service-manager';
@@ -117,7 +118,7 @@ function hasMissingResolvedPlace(trip: TripDraft): boolean {
   });
 }
 
-export async function parseTripTextToDraft(body: ParseBody): Promise<ParseRouteResponse> {
+export async function parseTripTextToDraft(body: ParseBody, request?: Request): Promise<ParseRouteResponse> {
   const timezone = isNonEmptyString(body.timezone) ? body.timezone : 'Asia/Shanghai';
   const text = isNonEmptyString(body.text) ? body.text.trim() : '';
 
@@ -138,9 +139,9 @@ export async function parseTripTextToDraft(body: ParseBody): Promise<ParseRouteR
   // Detect user location from IP for intelligent map provider selection
   let geoDetection: GeoDetectionResult | undefined;
   try {
-    // In a real implementation, you would get the IP from the request
-    // For now, we'll detect from the current server's IP
-    geoDetection = await detectLocationFromIp();
+    // Extract IP from request if available
+    const ip = request ? extractIpFromRequest(request) : undefined;
+    geoDetection = await detectLocationFromIp(ip);
   } catch (error) {
     console.error('[parse] Geolocation detection failed:', error);
   }
@@ -200,12 +201,30 @@ export async function parseTripTextToDraft(body: ParseBody): Promise<ParseRouteR
   }
 }
 
-export async function optimizeTripServer(body: OptimizeBody): Promise<OptimizeRouteResponse> {
+export async function optimizeTripServer(
+  body: OptimizeBody,
+  request?: Request,
+): Promise<OptimizeRouteResponse> {
   if (!body.trip) {
     throw new Error('trip is required');
   }
 
   const trip = { ...body.trip };
+
+  // Detect location for intelligent provider selection if not specified
+  if (!trip.mapProvider && request) {
+    try {
+      // Extract IP from request if available
+      const ip = extractIpFromRequest(request);
+      const geoDetection = await detectLocationFromIp(ip);
+      const location = geoDetection?.location;
+      trip.mapProvider = selectMapProviderByLocation(location);
+    } catch (error) {
+      console.error('[optimize] Geolocation detection failed:', error);
+      // Fallback to default
+      trip.mapProvider = 'amap';
+    }
+  }
 
   if (
     process.env.AMAP_API_KEY &&
@@ -245,6 +264,7 @@ export async function optimizeTripServer(body: OptimizeBody): Promise<OptimizeRo
 
 export async function buildNavigationLinksServer(
   body: NavigationBody,
+  request?: Request,
 ): Promise<NavigationLinksRouteResponse> {
   if (!body.trip) {
     throw new Error('trip is required');
@@ -255,7 +275,9 @@ export async function buildNavigationLinksServer(
   // Detect location for intelligent provider selection
   let geoDetection: GeoDetectionResult | undefined;
   try {
-    geoDetection = await detectLocationFromIp();
+    // Extract IP from request if available
+    const ip = request ? extractIpFromRequest(request) : undefined;
+    geoDetection = await detectLocationFromIp(ip);
   } catch (error) {
     console.error('[navigation] Geolocation detection failed:', error);
   }

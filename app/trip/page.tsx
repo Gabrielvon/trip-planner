@@ -36,6 +36,7 @@ export default function TripPage() {
     hasStarted,
     useDemoOptimization,
     useDemoNavigation,
+    hasUserLLMConfig,
     loadSamplePreset,
     applyStructuredDraft,
     handleFileImported,
@@ -97,6 +98,7 @@ export default function TripPage() {
           onRunNavigation={runNavigation}
           parsedDayMap={parsedDayMap}
           draftStopCount={workspaceState.draftStops.length}
+          hasUserLLMConfig={hasUserLLMConfig}
         />
 
         {hasStarted && (

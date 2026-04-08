@@ -48,6 +48,15 @@ test('isChinaMainland returns true for China mainland locations', () => {
   };
   
   assert.equal(isChinaMainland(chinaLocation), true);
+  
+  const shanghaiLocation = {
+    country: 'China',
+    countryCode: 'CN',
+    region: 'Shanghai',
+    isInChinaMainland: true
+  };
+  
+  assert.equal(isChinaMainland(shanghaiLocation), true);
 });
 
 test('isChinaMainland returns false for non-China locations', () => {
@@ -59,6 +68,15 @@ test('isChinaMainland returns false for non-China locations', () => {
   };
   
   assert.equal(isChinaMainland(usLocation), false);
+  
+  const japanLocation = {
+    country: 'Japan',
+    countryCode: 'JP',
+    region: 'Tokyo',
+    isInChinaMainland: false
+  };
+  
+  assert.equal(isChinaMainland(japanLocation), false);
 });
 
 test('selectMapProviderByLocation selects AMap for China mainland', () => {
@@ -68,7 +86,12 @@ test('selectMapProviderByLocation selects AMap for China mainland', () => {
     isInChinaMainland: true
   };
   
+  // No user preference
   assert.equal(selectMapProviderByLocation(chinaLocation), 'amap');
+  
+  // User preference should be respected
+  assert.equal(selectMapProviderByLocation(chinaLocation, 'google'), 'google');
+  assert.equal(selectMapProviderByLocation(chinaLocation, 'mapbox'), 'mapbox');
 });
 
 test('selectMapProviderByLocation selects Google for non-China locations', () => {
@@ -79,18 +102,37 @@ test('selectMapProviderByLocation selects Google for non-China locations', () =>
   };
   
   assert.equal(selectMapProviderByLocation(usLocation), 'google');
+  
+  const japanLocation = {
+    country: 'Japan',
+    countryCode: 'JP',
+    isInChinaMainland: false
+  };
+  
+  assert.equal(selectMapProviderByLocation(japanLocation), 'google');
 });
 
 test('selectMapProviderByLocation handles undefined location', () => {
+  // Default to AMap for safety when location is unknown
   assert.equal(selectMapProviderByLocation(undefined), 'amap');
+  assert.equal(selectMapProviderByLocation(null), 'amap');
 });
 
 test('getMapProviderWithFallback returns appropriate fallback providers', () => {
-  const chinaFallback = getMapProviderWithFallback('amap');
-  assert.deepEqual(chinaFallback, { primary: 'amap', fallback: 'google' });
+  // AMap should fallback to Google
+  const amapFallback = getMapProviderWithFallback('amap');
+  assert.equal(amapFallback.primary, 'amap');
+  assert.equal(amapFallback.fallback, 'google');
   
-  const globalFallback = getMapProviderWithFallback('google');
-  assert.deepEqual(globalFallback, { primary: 'google', fallback: 'mapbox' });
+  // Google should fallback to Mapbox
+  const googleFallback = getMapProviderWithFallback('google');
+  assert.equal(googleFallback.primary, 'google');
+  assert.equal(googleFallback.fallback, 'mapbox');
+  
+  // Mapbox should fallback to Google
+  const mapboxFallback = getMapProviderWithFallback('mapbox');
+  assert.equal(mapboxFallback.primary, 'mapbox');
+  assert.equal(mapboxFallback.fallback, 'google');
 });
 
 test('isMapProviderAccessible checks provider accessibility by location', () => {
@@ -100,12 +142,31 @@ test('isMapProviderAccessible checks provider accessibility by location', () => 
     isInChinaMainland: true
   };
   
+  const usLocation = {
+    country: 'United States',
+    countryCode: 'US',
+    isInChinaMainland: false
+  };
+  
+  // AMap should be accessible in China
   assert.equal(isMapProviderAccessible('amap', chinaLocation), true);
-  assert.equal(isMapProviderAccessible('google', chinaLocation), false);
+  
+  // Google should be accessible in US
+  assert.equal(isMapProviderAccessible('google', usLocation), true);
+  
+  // Mapbox should be accessible everywhere
   assert.equal(isMapProviderAccessible('mapbox', chinaLocation), true);
+  assert.equal(isMapProviderAccessible('mapbox', usLocation), true);
+  
+  // Google may not be accessible in China
+  assert.equal(isMapProviderAccessible('google', chinaLocation), false);
+  
+  // AMap may not be accessible outside China
+  assert.equal(isMapProviderAccessible('amap', usLocation), false);
 });
 
 test('isMapProviderAccessible handles undefined location', () => {
+  // When location is unknown, assume all providers are accessible
   assert.equal(isMapProviderAccessible('amap', undefined), true);
   assert.equal(isMapProviderAccessible('google', undefined), true);
   assert.equal(isMapProviderAccessible('mapbox', undefined), true);
@@ -116,8 +177,8 @@ test('detectLocationFromIp with mocked responses', async (t) => {
   await t.test('successful detection from ipapi.co', async () => {
     setupFetchMock();
     
-    // Mock ipapi.co response - note: URL includes IP address
-    mockFetchResponses.set('https://ipapi.co/8.8.8.8/json/', {
+    // Mock ipapi.co response
+    mockFetchResponses.set('https://ipapi.co/json/', {
       country_name: 'China',
       country_code: 'CN',
       region: 'Beijing',
@@ -145,7 +206,8 @@ test('detectLocationFromIp with mocked responses', async (t) => {
     // ipapi.co fails (no mock response)
     // Mock ipinfo.io response
     mockFetchResponses.set('https://ipinfo.io/8.8.8.8/json', {
-      country: 'US',
+      country: 'United States',
+      countryCode: 'US',
       region: 'California',
       city: 'Mountain View'
     });
@@ -154,7 +216,7 @@ test('detectLocationFromIp with mocked responses', async (t) => {
     
     const result = await detectLocationFromIp('8.8.8.8');
     
-    assert.equal(result.location?.country, 'US');
+    assert.equal(result.location?.country, 'United States');
     assert.equal(result.location?.countryCode, 'US');
     assert.equal(result.location?.isInChinaMainland, false);
     assert.equal(result.source, 'ip');
@@ -204,20 +266,100 @@ test('geolocation module tests', async (t) => {
   });
   
   await t.test('IP extraction from request tests', async () => {
-    // Tests will run above
+    // Tests will run below
   });
 });
 
+// Test extractIpFromRequest function
 test('extractIpFromRequest extracts IP from various headers', () => {
-  // Note: extractIpFromRequest expects headers to have a get() method
-  // This test needs to be updated to pass proper Headers object
-  // For now, skip this test
-  console.log('Skipping extractIpFromRequest tests - needs Headers object');
+  // Helper function to create mock request with Headers object
+  function createMockRequest(headersObj) {
+    const headers = new Headers();
+    for (const [key, value] of Object.entries(headersObj)) {
+      headers.set(key, value);
+    }
+    return { headers };
+  }
+  
+  // Test X-Forwarded-For header
+  const request1 = createMockRequest({
+    'x-forwarded-for': '203.0.113.195, 198.51.100.1, 192.0.2.1'
+  });
+  
+  assert.equal(extractIpFromRequest(request1), '203.0.113.195');
+  
+  // Test X-Real-IP header
+  const request2 = createMockRequest({
+    'x-real-ip': '192.168.1.100'
+  });
+  
+  assert.equal(extractIpFromRequest(request2), '192.168.1.100');
+  
+  // Test Cloudflare header
+  const request3 = createMockRequest({
+    'cf-connecting-ip': '10.0.0.1'
+  });
+  
+  assert.equal(extractIpFromRequest(request3), '10.0.0.1');
+  
+  // Test multiple headers - should use X-Forwarded-For first
+  const request4 = createMockRequest({
+    'x-forwarded-for': '203.0.113.195',
+    'x-real-ip': '192.168.1.100',
+    'cf-connecting-ip': '10.0.0.1'
+  });
+  
+  assert.equal(extractIpFromRequest(request4), '203.0.113.195');
+  
+  // Test invalid IP in X-Forwarded-For
+  // If first IP is invalid, should return undefined (not fallback to proxy IPs)
+  const request5 = createMockRequest({
+    'x-forwarded-for': 'invalid-ip, 192.168.1.100'
+  });
+  
+  assert.equal(extractIpFromRequest(request5), undefined);
+  
+  // Test no headers - should return undefined
+  const request6 = createMockRequest({});
+  
+  assert.equal(extractIpFromRequest(request6), undefined);
+  
+  // Test IPv6 address
+  const request7 = createMockRequest({
+    'x-forwarded-for': '2001:0db8:85a3:0000:0000:8a2e:0370:7334'
+  });
+  
+  assert.equal(extractIpFromRequest(request7), '2001:0db8:85a3:0000:0000:8a2e:0370:7334');
 });
 
 test('extractIpFromRequest handles edge cases', () => {
-  // Note: extractIpFromRequest expects headers to have a get() method
-  // This test needs to be updated to pass proper Headers object
-  // For now, skip this test
-  console.log('Skipping extractIpFromRequest edge case tests - needs Headers object');
+  // Helper function to create mock request with Headers object
+  function createMockRequest(headersObj) {
+    const headers = new Headers();
+    for (const [key, value] of Object.entries(headersObj)) {
+      headers.set(key, value);
+    }
+    return { headers };
+  }
+  
+  // Test empty X-Forwarded-For
+  const request1 = createMockRequest({
+    'x-forwarded-for': ''
+  });
+  
+  assert.equal(extractIpFromRequest(request1), undefined);
+  
+  // Test whitespace in X-Forwarded-For
+  const request2 = createMockRequest({
+    'x-forwarded-for': '  203.0.113.195  ,  198.51.100.1  '
+  });
+  
+  assert.equal(extractIpFromRequest(request2), '203.0.113.195');
+  
+  // Test malformed header with extra commas
+  const request3 = createMockRequest({
+    'x-forwarded-for': '203.0.113.195,,198.51.100.1,'
+  });
+  
+  assert.equal(extractIpFromRequest(request3), '203.0.113.195');
 });

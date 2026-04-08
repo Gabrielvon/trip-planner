@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node -e \"require('node:fs').rmSync('.test-dist', { recursive: true, force: true })\" && tsc --module commonjs --target es2020 --outDir .test-dist lib/trip/types.ts lib/trip/parse-file.ts && node --test --test-isolation=none tests/parse-file.test.mjs tests/trip-refactor.test.mjs tests/trip-component-dom.test.mjs"
+    "test": "node -e \"require('node:fs').rmSync('.test-dist', { recursive: true, force: true })\" && tsc --module commonjs --target es2020 --outDir .test-dist lib/trip/types.ts lib/trip/parse-file.ts lib/trip/geolocation.ts lib/trip/mock.ts && node --test --test-isolation=none tests/parse-file.test.mjs tests/trip-refactor.test.mjs tests/trip-component-dom.test.mjs tests/geolocation.test.mjs tests/chinese-presets.test.mjs"
   },
   "dependencies": {
     "next": "^16.2.2",
